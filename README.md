@@ -8,7 +8,7 @@
 
 ## About
 
-SCANTY MINI BOT is a multi-device WhatsApp bot built with ). The project includes a web pairing page, an Express HTTP server, and MongoDB storage for sessions and related data.
+SCANTY MINI BOT is a multi-device WhatsApp bot. The project includes a web pairing page, an Express HTTP server, and MongoDB storage for sessions and related data.
 
 ### Main features
 
@@ -21,7 +21,6 @@ SCANTY MINI BOT is a multi-device WhatsApp bot built with ). The project include
 
 > Available commands can change with the repository's plugins. Send `menu` to the bot to see the current command list.
 
-## Quick links
 
 # Requirements
 
