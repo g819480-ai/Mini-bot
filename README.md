@@ -3,7 +3,7 @@
 
   # SCANTY MINI BOT
 
-  <p><strong>An open-source WhatsApp multi-device bot built with Node.js and Baileys, featuring pairing-code setup, MongoDB-backed sessions, a web pairing page, and a modular plugin system for messaging, media, and group tools. Created by @NoxCoreDev.</strong></p>
+  <p><strong>An open-source WhatsApp multi-device bot built with Node.js and Baileys, featuring pairing-code setup, MongoDB-backed sessions, a web pairing page, and a modular plugin system for messaging, media, and group tools. Created by @SCANTY.</strong></p>
 </div>
 
 ## About
@@ -35,8 +35,8 @@ The application serves its pairing page at `/` and its health response at `/ping
 ## Local installation
 
 ```bash
-git clone https://github.com/NoxCoreDev/NOXFREEMINIBOT.git
-cd NOXFREEMINIBOT
+git clone (https://github.com/g819480-ai/Mini-bot.git)
+cd SCANTYMINIBOT
 npm install
 cp .env.example .env
 ```
@@ -45,8 +45,8 @@ Edit `.env` locally and set at least `MONGODB_URI`. Never put a real database UR
 
 ```env
 MONGODB_URI=
-BOT_NAME="NOX FREE MINI BOT"
-OWNER_NAME="NOX"
+BOT_NAME="SCANTY MINI BOT"
+OWNER_NAME="SCANTY"
 ```
 
 Start the server:
@@ -62,7 +62,7 @@ Set values in a local `.env` file or in your hosting provider's environment-vari
 | Variable | Required? | Purpose |
 | --- | --- | --- |
 | `MONGODB_URI` | Yes | MongoDB connection URI. The application refuses to start when this value is missing or blank. |
-| `BOT_NAME` | No | Name shown by the bot and pairing page. Default: `NOX FREE MINI BOT`. |
+| `BOT_NAME` | No | Name shown by the bot and pairing page. Default: `SCANTY  MINI BOT`. |
 | `OWNER_NAME` | No | Owner label shown in bot information. Default: `NOX`. |
 | `OWNER_NUMBER` | No, recommended | Owner's WhatsApp number in international format, used by owner-only features. Set the intended value in the host's secret settings; do not publish a personal number. |
 | `WORK_TYPE` | No | Operating mode: `public`, `private`, `group`, or `inbox`. Default: `public`. |
@@ -106,20 +106,16 @@ A `systemd` service is another option. Protect the environment file (for example
 
 Create a **Web Service** from the GitHub repository. Use `npm install` as the build command and `npm start` as the start command. Set `MONGODB_URI` and any other required values in the service's secret environment settings. See the [).
 
-**Free-tier limitation:** Render says Free Web Services spin down after 15 minutes without inbound traffic, including existing WebSocket messages. The bot needs a persistent WhatsApp connection, so a free instance may sleep or disconnect and should not be treated as a reliable 24/7 bot host. Render also states that Free instances have other limitations and are intended for testing or hobby projects; check the [current Free plan terms](https://render.com/docs/free).
-
+**Free-tier limitation:** Render says Free Web Services spin down after 15 minutes without inbound traffic, including existing WebSocket messages. The bot needs a persistent WhatsApp connection, so a free instance may sleep or disconnect and should not be treated as a reliable 24/7 bot host. Render also states that Free instances have other limitations and are intended for testing or hobby projects; check the [current Free plan terms]
 ### Railway
 
-Create a project from the GitHub repository, use the Node.js build process, and set the start command to `npm start`. Add `MONGODB_URI` and other private settings in the service's variables/secrets. See the [Railway Quick Start](https://docs.railway.com/quick-start).
+Create a project from the GitHub repository, use the Node.js build process, and set the start command to `npm start`. Add `MONGODB_URI` and other private settings in the service's variables/secrets.
 
-**Free-tier limitation:** Railway currently lists a 30-day trial with `$5` in credits, followed by `$1` per month in included usage; the Free plan lists up to `0.5 GB` of RAM per service after the trial. This is a limited usage allowance, not unlimited free hosting or a promise of 24/7 uptime. Review [current Railway pricing](https://railway.com/pricing) and monitor usage.
+**Free-tier limitation:** Railway currently lists a 30-day trial with `$5` in credits, followed by `$1` per month in included usage; the Free plan lists up to `0.5 GB` of RAM per service after the trial. This is a limited usage allowance, not unlimited free hosting or a promise of 24/7 uptime.
 
 ### Koyeb
 
-Create a **Web Service** from the GitHub repository and select the native Node.js buildpack rather than Docker. Use `npm start` and configure the required environment variables. The project has an HTTP server, so use a Web Service configuration. See Koyeb's [Express deployment guide](https://www.koyeb.com/docs/deploy/express).
-
-**Free-tier limitation:** Koyeb documents one Free Instance with `512 MB` RAM and `0.1 vCPU`; it is for Web Services only, cannot be used as a Worker Service, and scales to zero after one hour without traffic. Because this bot needs a persistent WhatsApp connection, that free instance is not suitable for dependable 24/7 operation. Check [Koyeb's current instance terms](https://www.koyeb.com/docs/reference/instances).
-
+Create a **Web Service** from the GitHub repository and select the native Node.js buildpack rather than Docker. Use `npm start` and configure the required environment variables. The project has an HTTP server, so use a Web Service configuration. documents one Free Instance with `512 MB` RAM and `0.1 vCPU`; it is for Web Services only, cannot be used as a Worker Service, and scales to zero after one hour without traffic. Because this bot needs a persistent WhatsApp connection, that free instance is not suitable for dependable 24/7 operation. 
 ### Other Node.js hosts
 
 The same app can be deployed to another Node.js host if it supports Node.js 24.x, `npm install`, `npm start`, runtime environment variables, an externally reachable HTTP port, outbound connections to WhatsApp/MongoDB, and a long-running process. Use the provider's native Node.js runtime; a serverless function or an instance that routinely sleeps may disconnect the bot.
@@ -155,5 +151,5 @@ A pairing code and session provide access to the associated WhatsApp account. Do
 
 
 <div align="center">
-  <sub>© 2026 SCANTY MINI BOT — NOXCOREDEV ALL RIGHTS RESERVED</sub>
+  <sub>© 2026 SCANTY MINI BOT — SCANT OFFICIAL-ALL RIGHTS RESERVED</sub>
 </div>
