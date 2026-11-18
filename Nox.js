@@ -351,15 +351,13 @@ async function noxPair(number, res = null) {
     try {
         await conn.sendMessage(userJid, {
             image: { url: randomImage() },
-            caption: `*╭─❏ SCANTY MINI BOT ❏*
-*│ 🤖 BOT Cᴏɴɴᴇᴄᴛᴇᴅ ✅️*
+            caption: `*╭─❏ SCANTY MINI BOT ❏
+*│ BOT Cᴏɴɴᴇᴄᴛᴇᴅ ✅️*
 *│ ᴛʏᴘᴇ ${prefix}menu ᴛᴏ sᴇᴇ ᴀʟʟ ᴄᴍᴅs 💫*
 *│ Pʀᴇғɪx: ${prefix}*
 *│ Mᴏᴅᴇ: ${mode}*
-*│*
-*│ Wᴇʟᴄᴏᴍᴇ ᴛᴏ SCANTY MINI BOT 🌹*
 *╰═───────────────═⬡*
-> *Powered by SCANTY MINI BOT 🧸*`,
+> *Welcome to SCANTY MINI BOT 🌹*`,
             contextInfo: {
                 mentionedJid: [],
                 forwardingScore: 1,
@@ -375,7 +373,9 @@ async function noxPair(number, res = null) {
         noxLog(`Failed to send connection message for ${sanitizedNumber}: ${connectMsgError.message}`, 'error');
     }
 }
-            if (connection === 'close') {
+
+                
+          if (connection === 'close') {
                 const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode;
                 const errorMessage = lastDisconnect && lastDisconnect.error && lastDisconnect.error.message;
 
