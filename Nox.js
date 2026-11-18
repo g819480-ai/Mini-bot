@@ -491,46 +491,20 @@ async function noxPair(number, res = null) {
     }
 });
 
-                // Reconnexion unique et contrôlée (max 3 tentatives), gérée ici uniquement
-                if (restartAttempts < maxRestartAttempts) {
-                    restartAttempts++;
-                    noxLog(`Reconnecting ${sanitizedNumber} (${restartAttempts}/${maxRestartAttempts}) in 10s...`, 'warning');
-                    conn.ev.removeAllListeners();
-                    await delay(10000);
-                    try {
-                        const mockRes = { headersSent: false, send: () => {}, status: () => mockRes, setHeader: () => {}, json: () => {} };
-                        await noxPair(number, mockRes);
-                    } catch (e) {
-                        noxLog(`Reconnection failed for ${sanitizedNumber}: ${e.message}`, 'error');
+
+         // ============ STATUS AUTO SEEN & REACT ============
+        if (mek.key && mek.key.remoteJid === 'status@broadcast') {
+        const statusPoster = mek.key.participant || mek.participant;
+
+        if (userConfig.AUTO_VIEW_STATUS === 'true') {
+         try { await conn.readMessages([mek.key]); } catch (e) {}
                     }
-                } else {
-                    noxLog(`Max restart attempts reached for ${sanitizedNumber}.`, 'error');
-                    conn.ev.removeAllListeners();
-                }
-            }
-        });
-
-
-        conn.ev.on('messages.upsert', async (msg) => {
-            for (const mek of msg.messages) {
-              try {
-                const userConfig = await getUserConfigFromMongoDB(number);
-
-
-
-                // ============ STATUS AUTO SEEN & REACT ============
-                if (mek.key && mek.key.remoteJid === 'status@broadcast') {
-                    const statusPoster = mek.key.participant || mek.participant;
-
-                    if (userConfig.AUTO_VIEW_STATUS === 'true') {
-                        try { await conn.readMessages([mek.key]); } catch (e) {}
-                    }
-                    if (userConfig.AUTO_LIKE_STATUS === 'true') {
+        if (userConfig.AUTO_LIKE_STATUS === 'true') {
                         try {
-                            const botJid = conn.user?.id || conn.user?.jid;
-                            const emojis = (userConfig.AUTO_LIKE_EMOJI && userConfig.AUTO_LIKE_EMOJI.length) ? userConfig.AUTO_LIKE_EMOJI : config.AUTO_LIKE_EMOJI;
-                            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-                            await conn.sendMessage('status@broadcast', { react: { text: randomEmoji, key: mek.key } }, { statusJidList: [statusPoster, botJid].filter(Boolean) });
+          const botJid = conn.user?.id || conn.user?.jid;
+          const emojis = (userConfig.AUTO_LIKE_EMOJI && userConfig.AUTO_LIKE_EMOJI.length) ? userConfig.AUTO_LIKE_EMOJI : config.AUTO_LIKE_EMOJI;
+          const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+          await conn.sendMessage('status@broadcast', { react: { text: randomEmoji, key: mek.key } }, { statusJidList: [statusPoster, botJid].filter(Boolean) });
                         } catch (e) {}
                     }
                     if (userConfig.AUTO_STATUS_REPLY === 'true' && statusPoster) {
