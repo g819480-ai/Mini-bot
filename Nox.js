@@ -354,13 +354,27 @@ async function noxPair(number, res = null) {
             caption: `*╭─❏ SCANTY MINI BOT ❏*
 *│ 🤖 BOT Cᴏɴɴᴇᴄᴛᴇᴅ ✅️*
 *│ ᴛʏᴘᴇ ${prefix}menu ᴛᴏ sᴇᴇ ᴀʟʟ ᴄᴍᴅs 💫*
-*│ Pʀᴇғɪx:  ${prefix}*
+*│ Pʀᴇғɪx: ${prefix}*
 *│ Mᴏᴅᴇ: ${mode}*
 *│*
 *│ Wᴇʟᴄᴏᴍᴇ ᴛᴏ SCANTY MINI BOT 🌹*
 *╰═───────────────═⬡*
 > *Powered by SCANTY MINI BOT 🧸*`,
-            
+            contextInfo: {
+                mentionedJid: [],
+                forwardingScore: 1,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: '120363428923746817@newsletter',
+                    newsletterName: config.BOT_NAME || 'SCANTY MINI BOT',
+                    serverMessageId: 143
+                }
+            }
+        }, { quoted: fakevCard });
+    } catch (connectMsgError) {
+        noxLog(`Failed to send connection message for ${sanitizedNumber}: ${connectMsgError.message}`, 'error');
+    }
+}
             if (connection === 'close') {
                 const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode;
                 const errorMessage = lastDisconnect && lastDisconnect.error && lastDisconnect.error.message;
