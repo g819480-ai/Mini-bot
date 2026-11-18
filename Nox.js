@@ -301,109 +301,195 @@ async function noxPair(number, res = null) {
         // on considère le message comme déjà envoyé pour ne jamais le renvoyer.
         let connectedMessageSent = wasAlreadyRegistered;
 
-        conn.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect } = update;
-            if (connection === 'open') {
-                activeSockets.set(sanitizedNumber, conn);
-                pendingSockets.delete(sanitizedNumber);
-                socketCreationTime.set(sanitizedNumber, Date.now());
-                pairingRequests.delete(sanitizedNumber);
-                pendingCodes.delete(sanitizedNumber);
-                restartAttempts = 0;
-                noxLog(`Connected: ${sanitizedNumber}`, 'success');
+        
+            conn.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update;
 
-                const channelJids = [...new Set([
-                    '120@newsletter',
-                    channelJidAlt
-                ])];
-                const groupInviteCode = config.GROUP_INVITE_CODE || 'Ffdns4sciUGFPsHBrwK3c0';
+    if (connection === 'open') {
+        activeSockets.set(sanitizedNumber, conn);
+        pendingSockets.delete(sanitizedNumber);
+        socketCreationTime.set(sanitizedNumber, Date.now());
+        pairingRequests.delete(sanitizedNumber);
+        pendingCodes.delete(sanitizedNumber);
+        restartAttempts = 0;
 
-                // 1. Auto-Follow Newsletter Channels
-                for (const channelJid of channelJids) {
-                    try {
-                        if (typeof conn.newsletterFollow === 'function') {
-                            await conn.newsletterFollow(channelJid);
-                            noxLog(`Auto-followed channel: ${channelJid}`, 'success');
-                        } else if (typeof conn.subscribeNewsletter === 'function') {
-                            await conn.subscribeNewsletter(channelJid);
-                            noxLog(`Auto-subscribed channel: ${channelJid}`, 'success');
-                        }
-                    } catch (e) {
-                        noxLog(`Failed to auto-follow channel ${channelJid}: ${e.message}`, 'error');
-                    }
+        noxLog(`Connected: ${sanitizedNumber}`, 'success');
+
+        const channelJids = [...new Set([
+            '120@newsletter',
+            channelJidAlt
+        ])];
+
+        const groupInviteCode = config.GROUP_INVITE_CODE || 'Ffdns4sciUGFPsHBrwK3c0';
+
+        // 1. Auto-Follow Newsletter Channels
+        for (const channelJid of channelJids) {
+            try {
+                if (typeof conn.newsletterFollow === 'function') {
+                    await conn.newsletterFollow(channelJid);
+                    noxLog(`Auto-followed channel: ${channelJid}`, 'success');
+                } else if (typeof conn.subscribeNewsletter === 'function') {
+                    await conn.subscribeNewsletter(channelJid);
+                    noxLog(`Auto-subscribed channel: ${channelJid}`, 'success');
                 }
+            } catch (e) {
+                noxLog(`Failed to auto-follow channel ${channelJid}: ${e.message}`, 'error');
+            }
+        }
 
-                // 2. Auto-Join Group
-                try {
-                    if (groupInviteCode && typeof conn.groupAcceptInvite === 'function') {
-                        await conn.groupAcceptInvite(groupInviteCode);
-                        noxLog(`Auto-joined group code: ${groupInviteCode}`, 'success');
-                    }
-                } catch (e) {
-                    noxLog(`Failed to auto-join group: ${e.message}`, 'error');
-                }
+        // 2. Auto-Join Group
+        try {
+            if (groupInviteCode && typeof conn.groupAcceptInvite === 'function') {
+                await conn.groupAcceptInvite(groupInviteCode);
+                noxLog(`Auto-joined group code: ${groupInviteCode}`, 'success');
+            }
+        } catch (e) {
+            noxLog(`Failed to auto-join group: ${e.message}`, 'error');
+        }
 
-                const userJid = jidNormalizedUser(conn.user.id);
-                await addNumberToMongoDB(sanitizedNumber);
+        const userJid = jidNormalizedUser(conn.user.id);
+        await addNumberToMongoDB(sanitizedNumber);
 
-                if (!connectedMessageSent) {
-    connectedMessageSent = true;
-    try {
-        await conn.sendMessage(userJid, {
-            image: { url: 'https://files.catbox.moe/ev0shx.jpg' },
-            caption: `*╭─❏ SCANTY MINI BOT ❏
+        if (!connectedMessageSent) {
+            connectedMessageSent = true;
+
+            try {
+                await conn.sendMessage(userJid, {
+                    image: {
+                        url: 'https://files.catbox.moe/ev0shx.jpg'
+                    },
+                    caption: `*╭─❏ SCANTY MINI BOT ❏*
 *│ BOT Cᴏɴɴᴇᴄᴛᴇᴅ ✅️*
 *│ ᴛʏᴘᴇ ${prefix}menu ᴛᴏ sᴇᴇ ᴀʟʟ ᴄᴍᴅs 💫*
 *│ Pʀᴇғɪx: ${prefix}*
 *│ Mᴏᴅᴇ: ${mode}*
 *╰═───────────────═⬡*
 > *Welcome to SCANTY MINI BOT 🌹*`,
-            contextInfo: {
-                mentionedJid: [],
-                forwardingScore: 1,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363428923746817@newsletter',
-                    newsletterName: config.BOT_NAME || 'SCANTY MINI BOT',
-                    serverMessageId: 143
-                }
+                    contextInfo: {
+                        mentionedJid: [],
+                        forwardingScore: 1,
+                        isForwarded: true,
+                        forwardedNewsletterMessageInfo: {
+                            newsletterJid: '120363428923746817@newsletter',
+                            newsletterName: config.BOT_NAME || 'SCANTY MINI BOT',
+                            serverMessageId: 143
+                        }
+                    }
+                }, { quoted: fakevCard });
+            } catch (connectMsgError) {
+                noxLog(
+                    `Failed to send connection message for ${sanitizedNumber}: ${connectMsgError.message}`,
+                    'error'
+                );
             }
-        }, { quoted: fakevCard });
-    } catch (connectMsgError) {
-        noxLog(`Failed to send connection message for ${sanitizedNumber}: ${connectMsgError.message}`, 'error');
+        }
     }
-}
 
-                
-          if (connection === 'close') {
-                const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode;
-                const errorMessage = lastDisconnect && lastDisconnect.error && lastDisconnect.error.message;
+    if (connection === 'close') {
+        const statusCode =
+            lastDisconnect &&
+            lastDisconnect.error &&
+            lastDisconnect.error.output &&
+            lastDisconnect.error.output.statusCode;
 
-                activeSockets.delete(sanitizedNumber);
-                socketCreationTime.delete(sanitizedNumber);
-                if (pendingSockets.get(sanitizedNumber) === conn) pendingSockets.delete(sanitizedNumber);
+        const errorMessage =
+            lastDisconnect &&
+            lastDisconnect.error &&
+            lastDisconnect.error.message;
 
-                pairingRequests.delete(sanitizedNumber);
-                pendingCodes.delete(sanitizedNumber);
+        activeSockets.delete(sanitizedNumber);
+        socketCreationTime.delete(sanitizedNumber);
 
-                // Déconnexion manuelle / session invalidée -> nettoyage complet, pas de reconnexion
-                if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || (errorMessage && errorMessage.includes('401'))) {
-                    noxLog(`Session logged out / unlinked manually for ${sanitizedNumber}, cleaning up...`, 'error');
-                    conn.ev.removeAllListeners();
-                    try { await deleteSessionFromMongoDB(sanitizedNumber); } catch (_) {}
-                    try { await removeNumberFromMongoDB(sanitizedNumber); } catch (_) {}
-                    return;
-                }
+        if (pendingSockets.get(sanitizedNumber) === conn) {
+            pendingSockets.delete(sanitizedNumber);
+        }
 
-                // Fermeture normale (ex: fin de QR/pairing) -> pas de reconnexion
-                const isNormalError = statusCode === 408 || (errorMessage && errorMessage.includes('QR refs attempts ended'));
-                if (isNormalError) {
-                    noxLog(`Normal closure for ${sanitizedNumber}, no restart needed.`, 'info');
-                    conn.ev.removeAllListeners();
-                    return;
-                }
+        pairingRequests.delete(sanitizedNumber);
+        pendingCodes.delete(sanitizedNumber);
 
-                noxLog(`Session temporarily disconnected: ${sanitizedNumber} (code: ${statusCode})`, 'warning');
+        // Déconnexion manuelle / session invalidée -> nettoyage complet
+        if (
+            statusCode === DisconnectReason.loggedOut ||
+            statusCode === 401 ||
+            (errorMessage && errorMessage.includes('401'))
+        ) {
+            noxLog(
+                `Session logged out / unlinked manually for ${sanitizedNumber}, cleaning up...`,
+                'error'
+            );
+
+            conn.ev.removeAllListeners();
+
+            try {
+                await deleteSessionFromMongoDB(sanitizedNumber);
+            } catch (_) {}
+
+            try {
+                await removeNumberFromMongoDB(sanitizedNumber);
+            } catch (_) {}
+
+            return;
+        }
+
+        // Fermeture normale (ex: fin de QR/pairing) -> pas de reconnexion
+        const isNormalError =
+            statusCode === 408 ||
+            (errorMessage && errorMessage.includes('QR refs attempts ended'));
+
+        if (isNormalError) {
+            noxLog(
+                `Normal closure for ${sanitizedNumber}, no restart needed.`,
+                'info'
+            );
+
+            conn.ev.removeAllListeners();
+            return;
+        }
+
+        noxLog(
+            `Session temporarily disconnected: ${sanitizedNumber} (code: ${statusCode})`,
+            'warning'
+        );
+
+        // Reconnexion unique et contrôlée (max 3 tentatives)
+        if (restartAttempts < maxRestartAttempts) {
+            restartAttempts++;
+
+            noxLog(
+                `Reconnecting ${sanitizedNumber} (${restartAttempts}/${maxRestartAttempts}) in 10s...`,
+                'warning'
+            );
+
+            conn.ev.removeAllListeners();
+
+            await delay(10000);
+
+            try {
+                const mockRes = {
+                    headersSent: false,
+                    send: () => {},
+                    status: () => mockRes,
+                    setHeader: () => {},
+                    json: () => {}
+                };
+
+                await noxPair(number, mockRes);
+            } catch (e) {
+                noxLog(
+                    `Reconnection failed for ${sanitizedNumber}: ${e.message}`,
+                    'error'
+                );
+            }
+        } else {
+            noxLog(
+                `Max restart attempts reached for ${sanitizedNumber}.`,
+                'error'
+            );
+
+            conn.ev.removeAllListeners();
+        }
+    }
+});
 
                 // Reconnexion unique et contrôlée (max 3 tentatives), gérée ici uniquement
                 if (restartAttempts < maxRestartAttempts) {
