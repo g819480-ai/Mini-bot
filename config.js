@@ -8,7 +8,7 @@ const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });
 }
-const botName = process.env.BOT_NAME || 'NOX FREE MINI BOT';
+const botName = process.env.BOT_NAME || 'SCANTY MINI BOT';
 const mongoUri = process.env.MONGODB_URI;
 if (typeof mongoUri !== 'string' || !mongoUri.trim()) {
     throw new Error('MONGODB_URI is required. Set it in the local .env file or deployment environment.');
@@ -26,10 +26,10 @@ module.exports = {
     BOT_NAME: botName,
 
     /** Footer text for bot messages */
-    BOT_FOOTER: process.env.BOT_FOOTER || '🌹🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ 𝐍𝚯𝐗 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋🧸',
+    BOT_FOOTER: process.env.BOT_FOOTER || '🌹🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ SCANTY 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋🧸',
 
     /** Owner name shown in menus */
-    OWNER_NAME: process.env.OWNER_NAME || 'NOX',
+    OWNER_NAME: process.env.OWNER_NAME || 'SCANTY',
 
     /** Bot work mode: public | private | group | inbox */
     WORK_TYPE: process.env.WORK_TYPE || "public",
