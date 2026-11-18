@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://files.catbox.moe/7euvhs.jpg" alt="NOX FREE MINI BOT" width="180">
 
-  # NOX FREE MINI BOT
+  # SCANTY MINI BOT
 
   [![Version](https://img.shields.io/badge/Version-1.0.0-green?style=for-the-badge)](https://github.com/NoxCoreDev/NOXFREEMINIBOT)
   [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
@@ -18,7 +18,7 @@
 
 ## About
 
-NOX FREE MINI BOT is a multi-device WhatsApp bot built with [Baileys](https://github.com/WhiskeySockets/Baileys). The project includes a web pairing page, an Express HTTP server, and MongoDB storage for sessions and related data.
+SCANTY MINI BOT is a multi-device WhatsApp bot built with ). The project includes a web pairing page, an Express HTTP server, and MongoDB storage for sessions and related data.
 
 ### Main features
 
@@ -33,19 +33,7 @@ NOX FREE MINI BOT is a multi-device WhatsApp bot built with [Baileys](https://gi
 
 ## Quick links
 
-| Resource | Link |
-| --- | --- |
-| Source code | [GitHub — NOXFREEMINIBOT](https://github.com/NoxCoreDev/NOXFREEMINIBOT) |
-| Fork this repository | [Create your own fork](https://github.com/NoxCoreDev/NOXFREEMINIBOT/fork) |
-| WhatsApp library | [Baileys — WhiskeySockets](https://github.com/WhiskeySockets/Baileys) |
-| Node.js 24.x | [Node.js downloads](https://nodejs.org/) |
-| Database | [MongoDB Atlas](https://www.mongodb.com/atlas) |
-| Render deployment guide | [Deploy a Node/Express app](https://render.com/docs/deploy-node-express-app) |
-| Railway deployment guide | [Deploy from GitHub](https://docs.railway.com/quick-start) |
-| Koyeb deployment guide | [Deploy an Express app](https://www.koyeb.com/docs/deploy/express) |
-| MongoDB connection guide | [Connect to an Atlas cluster](https://www.mongodb.com/docs/atlas/connect-to-database-deployment/) |
-
-## Requirements
+# Requirements
 
 - **Node.js 24.x** and npm, as declared in `package.json`.
 - A MongoDB database reachable from the host. MongoDB Atlas is one option; database plans and quotas are separate from hosting.
@@ -127,7 +115,7 @@ A `systemd` service is another option. Protect the environment file (for example
 
 ### Render
 
-Create a **Web Service** from the GitHub repository. Use `npm install` as the build command and `npm start` as the start command. Set `MONGODB_URI` and any other required values in the service's secret environment settings. See the [Render Node/Express guide](https://render.com/docs/deploy-node-express-app).
+Create a **Web Service** from the GitHub repository. Use `npm install` as the build command and `npm start` as the start command. Set `MONGODB_URI` and any other required values in the service's secret environment settings. See the [).
 
 **Free-tier limitation:** Render says Free Web Services spin down after 15 minutes without inbound traffic, including existing WebSocket messages. The bot needs a persistent WhatsApp connection, so a free instance may sleep or disconnect and should not be treated as a reliable 24/7 bot host. Render also states that Free instances have other limitations and are intended for testing or hobby projects; check the [current Free plan terms](https://render.com/docs/free).
 
@@ -175,15 +163,8 @@ A pairing code and session provide access to the associated WhatsApp account. Do
 
 ## FOLLOW Developer links For More
 
-[![Telegram](https://img.shields.io/badge/Telegram-@noxprimeeeinc-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/nox_chh)
-[![Instagram](https://img.shields.io/badge/Instagram-@noxprimeeeinc-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/NoxCoreDev)
-[![Twitter/X](https://img.shields.io/badge/Twitter-@noxprimeeeinc-000000?style=for-the-badge&logo=x&logoColor=white)](https://twitter.com/noxprimeeeinc)
-[![YouTube](https://img.shields.io/badge/YouTube-@noxprimeeeinc-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/@NoxCoreDev)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-Channel-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029VbDIn9u47Xe6gf8JxP3c)
-[![GitHub](https://img.shields.io/badge/GitHub-Nox--Primeee-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/NoxCoreDev)
 
----
 
 <div align="center">
-  <sub>© 2026 NOX FREE MINI BOT — NOXCOREDEV ALL RIGHTS RESERVED</sub>
+  <sub>© 2026 SCANTY MINI BOT — NOXCOREDEV ALL RIGHTS RESERVED</sub>
 </div>
