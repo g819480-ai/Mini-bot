@@ -1,4 +1,4 @@
-const { cmd } = require('../nox');
+const { cmd } = require('../scanty');
 const config = require('../config');
 const { t } = require('../lib/i18n');
 const style = require('../lib/style');
