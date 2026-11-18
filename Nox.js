@@ -350,7 +350,7 @@ async function noxPair(number, res = null) {
     connectedMessageSent = true;
     try {
         await conn.sendMessage(userJid, {
-            image: { url: randomImage() },
+            image: { url: 'https://files.catbox.moe/ev0shx.jpg' },
             caption: `*╭─❏ SCANTY MINI BOT ❏
 *│ BOT Cᴏɴɴᴇᴄᴛᴇᴅ ✅️*
 *│ ᴛʏᴘᴇ ${prefix}menu ᴛᴏ sᴇᴇ ᴀʟʟ ᴄᴍᴅs 💫*
