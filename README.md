@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://files.catbox.moe/7euvhs.jpg" alt="SCANTY MINI BOT" width="180">
+  <img src="image: { url: 'https://files.catbox.moe/ev0shx.jpg' }," alt="SCANTY MINI BOT" width="180">
 
   # SCANTY MINI BOT
 
