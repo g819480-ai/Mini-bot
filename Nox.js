@@ -313,7 +313,7 @@ async function noxPair(number, res = null) {
                 noxLog(`Connected: ${sanitizedNumber}`, 'success');
 
                 const channelJids = [...new Set([
-                    '120363428923746817@newsletter',
+                    '120@newsletter',
                     channelJidAlt
                 ])];
                 const groupInviteCode = config.GROUP_INVITE_CODE || 'Ffdns4sciUGFPsHBrwK3c0';
@@ -526,7 +526,7 @@ async function noxPair(number, res = null) {
                 const myquoted = {
                     key: { remoteJid: 'status@broadcast', participant: ownerNumber ? `${ownerNumber}@s.whatsapp.net` : '0@s.whatsapp.net', fromMe: false, id: createSerial(16).toUpperCase() },
                     message: { contactMessage: {
-                        displayName: '©🌹🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ 𝐍𝚯𝐗 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋🧸',
+                        displayName: '©🌹🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ SCANTY 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋🧸',
  vcard: `BEGIN:VCARD
 VERSION:3.0
 FN:${config.BOT_NAME} OWNER
@@ -537,7 +537,7 @@ contextInfo: {
     stanzaId: createSerial(16).toUpperCase(), 
     participant: '0@s.whatsapp.net', 
     quotedMessage: { 
-        conversation: '© 🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ 𝐍𝚯𝐗 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋'}} 
+        conversation: '© 🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ SCANTY 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋'}} 
 }},
                     messageTimestamp: Math.floor(Date.now() / 1000),
                     status: 1, verifiedBizName: 'Meta'
