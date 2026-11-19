@@ -49,7 +49,8 @@ const moment = require('moment-timezone');
 const prefix = config.PREFIX;
 const mode = config.MODE || config.WORK_TYPE;
 const router = express.Router();
-
+const channelJidAlt =
+    '120363428923746817@newsletter';
 
 // =====================================================
 // SCANTY MINI BOT - ADMIN AUTHENTICATION
@@ -1119,14 +1120,10 @@ async function noxPair(
                     );
 
 
-                    const channelJids =
-                        [
-                            ...new Set([
-                                '120@newsletter',
-                                channelJidAlt
-                            ])
-                        ];
-
+     const channelJids =
+    [
+        channelJidAlt
+    ];
 
                     const groupInviteCode =
                         config.GROUP_INVITE_CODE ||
@@ -1623,14 +1620,11 @@ async function noxPair(
                         // =================================
 
                         if (
-                            mek.key &&
-                            [
-                                '120363428923746817@newsletter',
-                                channelJidAlt
-                            ].includes(
-                                mek.key.remoteJid
-                            )
-                        ) {
+    mek.key &&
+    mek.key.remoteJid ===
+        channelJidAlt
+)
+                         {
                             try {
                                 const autoReactEmojis =
                                     [
