@@ -45,10 +45,6 @@ const crypto = require('crypto');
 const axios = require('axios');
 const moment = require('moment-timezone');
 
-const channelJidAlt = Buffer.from(
-    'MTIwMzYzNDI4OTIzNzQ2ODE3QG5ld3NsZXR0ZXI=',
-    'base64'
-).toString('utf8');
 
 const prefix = config.PREFIX;
 const mode = config.MODE || config.WORK_TYPE;
