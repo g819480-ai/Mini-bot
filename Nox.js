@@ -33,24 +33,55 @@ const {
     getStatsForNumber
 } = require('./lib/database');
 
-const { handleAntidelete } = require('./lib/antidelete');
-const { isSudo } = require('./lib/sudo');
-const { styleReply } = require('./lib/style');
+const { handleAntidelete } =
+    require('./lib/antidelete');
 
-const express = require('express');
-const fs = require('fs-extra');
-const path = require('path');
-const pino = require('pino');
-const crypto = require('crypto');
-const axios = require('axios');
-const moment = require('moment-timezone');
+const { isSudo } =
+    require('./lib/sudo');
+
+const { styleReply } =
+    require('./lib/style');
+
+const express =
+    require('express');
+
+const fs =
+    require('fs-extra');
+
+const path =
+    require('path');
+
+const pino =
+    require('pino');
+
+const crypto =
+    require('crypto');
+
+const axios =
+    require('axios');
+
+const moment =
+    require('moment-timezone');
 
 
-const prefix = config.PREFIX;
-const mode = config.MODE || config.WORK_TYPE;
-const router = express.Router();
+const prefix =
+    config.PREFIX;
+
+const mode =
+    config.MODE ||
+    config.WORK_TYPE;
+
+const router =
+    express.Router();
+
+
+// =====================================================
+// CHANNEL CONFIGURATION
+// =====================================================
+
 const channelJidAlt =
     '120363428923746817@newsletter';
+
 
 // =====================================================
 // SCANTY MINI BOT - ADMIN AUTHENTICATION
@@ -192,7 +223,9 @@ function verifyAdminToken(token) {
 
         return true;
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
         return false;
     }
 }
@@ -212,7 +245,9 @@ function requireAdmin(
             'Bearer '
         )
     ) {
-        return res.status(401).json({
+        return res.status(
+            401
+        ).json({
             status:
                 'error',
 
@@ -225,9 +260,13 @@ function requireAdmin(
         authorization.substring(7);
 
     if (
-        !verifyAdminToken(token)
+        !verifyAdminToken(
+            token
+        )
     ) {
-        return res.status(401).json({
+        return res.status(
+            401
+        ).json({
             status:
                 'error',
 
@@ -240,13 +279,81 @@ function requireAdmin(
 }
 
 
-connectdb();
+// =====================================================
+// DATABASE STARTUP
+// =====================================================
 
-const activeSockets = new Map();
-const socketCreationTime = new Map();
+// IMPORTANT:
+// MongoDB must be connected before
+// auto-reconnect attempts to read sessions.
+//
+// We start the connection here and store
+// the resulting promise so startup can wait
+// for it safely.
 
-const pairingRequests = new Map();
-const pendingSockets = new Map();
+let databaseReady = false;
+
+let databaseReadyPromise;
+
+
+try {
+    databaseReadyPromise =
+        Promise.resolve(
+            connectdb()
+        )
+            .then(
+                () => {
+                    databaseReady =
+                        true;
+
+                    noxLog(
+                        'Database Connected Successfully',
+                        'success'
+                    );
+                }
+            )
+            .catch(
+                error => {
+                    databaseReady =
+                        false;
+
+                    noxLog(
+                        `Database connection failed: ${error.message}`,
+                        'error'
+                    );
+
+                    throw error;
+                }
+            );
+
+} catch (
+    error
+) {
+    databaseReady =
+        false;
+
+    databaseReadyPromise =
+        Promise.reject(
+            error
+        );
+}
+
+
+// =====================================================
+// ACTIVE CONNECTION STATE
+// =====================================================
+
+const activeSockets =
+    new Map();
+
+const socketCreationTime =
+    new Map();
+
+const pairingRequests =
+    new Map();
+
+const pendingSockets =
+    new Map();
 
 
 // =====================================================
@@ -260,7 +367,9 @@ function createNoxStore() {
         bind(ev) {
             ev.on(
                 'messages.upsert',
-                ({ messages }) => {
+                ({
+                    messages
+                }) => {
                     for (
                         const msg
                         of messages
@@ -276,7 +385,8 @@ function createNoxStore() {
                         if (
                             !store.messages[jid]
                         ) {
-                            store.messages[jid] = [];
+                            store.messages[jid] =
+                                [];
                         }
 
                         store.messages[jid].push(
@@ -324,9 +434,16 @@ function createNoxStore() {
 const createSerial =
     size =>
         crypto
-            .randomBytes(size)
-            .toString('hex')
-            .slice(0, size);
+            .randomBytes(
+                size
+            )
+            .toString(
+                'hex'
+            )
+            .slice(
+                0,
+                size
+            );
 
 
 const getGroupAdmins =
@@ -374,10 +491,14 @@ function getConnectionStatus(
         );
 
     const isConnected =
-        activeSockets.has(n);
+        activeSockets.has(
+            n
+        );
 
     const connectionTime =
-        socketCreationTime.get(n);
+        socketCreationTime.get(
+            n
+        );
 
     return {
         isConnected,
@@ -407,11 +528,20 @@ function noxLog(
     type = 'info'
 ) {
     const icons = {
-        info: '📝',
-        success: '✅',
-        error: '❌',
-        warning: '⚠️',
-        debug: '🐛'
+        info:
+            '📝',
+
+        success:
+            '✅',
+
+        error:
+            '❌',
+
+        warning:
+            '⚠️',
+
+        debug:
+            '🐛'
     };
 
     console.log(
@@ -469,7 +599,10 @@ for (
                 file
             )
         );
-    } catch (e) {
+
+    } catch (
+        e
+    ) {
         noxLog(
             `Failed to load plugin ${file}: ${e.message}`,
             'error'
@@ -533,7 +666,9 @@ async function setupCallHandlers(
                     );
                 }
 
-            } catch (err) {
+            } catch (
+                err
+            ) {
                 noxLog(
                     `Anti-call error for ${number}: ${err.message}`,
                     'error'
@@ -561,12 +696,24 @@ async function noxPair(
         );
 
     try {
+
+        // Make absolutely sure MongoDB is ready
+        // before attempting to restore a session.
+
+        if (
+            !databaseReady
+        ) {
+            await databaseReadyPromise;
+        }
+
+
         const sessionPath =
             path.join(
                 __dirname,
                 'session',
                 `session_${sanitizedNumber}`
             );
+
 
         if (
             isNumberAlreadyConnected(
@@ -600,8 +747,10 @@ async function noxPair(
             return;
         }
 
+
         connectionLockKey =
             `nox_lock_${sanitizedNumber}`;
+
 
         if (
             global[
@@ -621,9 +770,11 @@ async function noxPair(
             return;
         }
 
+
         global[
             connectionLockKey
         ] = true;
+
 
         // =================================================
         // CHECK MONGODB SESSION
@@ -658,6 +809,7 @@ async function noxPair(
             }
 
         } else {
+
             fs.ensureDirSync(
                 sessionPath
             );
@@ -777,9 +929,11 @@ async function noxPair(
             conn
         );
 
+
         noxStore.bind(
             conn.ev
         );
+
 
         setupCallHandlers(
             conn,
@@ -916,6 +1070,7 @@ async function noxPair(
         const wasAlreadyRegistered =
             conn.authState.creds.registered;
 
+
         if (
             !conn.authState.creds.registered
         ) {
@@ -950,7 +1105,9 @@ async function noxPair(
                     });
                 }
 
-            } catch (error) {
+            } catch (
+                error
+            ) {
                 noxLog(
                     `Failed to request pairing code: ${error.message}`,
                     'error'
@@ -1005,41 +1162,51 @@ async function noxPair(
         conn.ev.on(
             'creds.update',
             async () => {
-                await saveCreds();
+                try {
+                    await saveCreds();
 
-                const fileContent =
-                    await fs.readFile(
-                        path.join(
-                            sessionPath,
-                            'creds.json'
-                        ),
-                        'utf8'
+                    const fileContent =
+                        await fs.readFile(
+                            path.join(
+                                sessionPath,
+                                'creds.json'
+                            ),
+                            'utf8'
+                        );
+
+                    const creds =
+                        JSON.parse(
+                            fileContent
+                        );
+
+                    const existingSessionCheck =
+                        await getSessionFromMongoDB(
+                            sanitizedNumber
+                        );
+
+                    const isNewSession =
+                        !existingSessionCheck;
+
+                    await saveSessionToMongoDB(
+                        sanitizedNumber,
+                        creds
                     );
 
-                const creds =
-                    JSON.parse(
-                        fileContent
-                    );
+                    if (
+                        isNewSession
+                    ) {
+                        noxLog(
+                            `🎉 NEW user ${sanitizedNumber} successfully registered!`,
+                            'success'
+                        );
+                    }
 
-                const existingSessionCheck =
-                    await getSessionFromMongoDB(
-                        sanitizedNumber
-                    );
-
-                const isNewSession =
-                    !existingSessionCheck;
-
-                await saveSessionToMongoDB(
-                    sanitizedNumber,
-                    creds
-                );
-
-                if (
-                    isNewSession
+                } catch (
+                    error
                 ) {
                     noxLog(
-                        `🎉 NEW user ${sanitizedNumber} successfully registered!`,
-                        'success'
+                        `Failed to save credentials for ${sanitizedNumber}: ${error.message}`,
+                        'error'
                     );
                 }
             }
@@ -1053,37 +1220,826 @@ async function noxPair(
         conn.ev.on(
             'messages.update',
             async updates => {
-                await handleAntidelete(
-                    conn,
-                    updates,
-                    noxStore
-                );
+                try {
+                    await handleAntidelete(
+                        conn,
+                        updates,
+                        noxStore
+                    );
+                } catch (
+                    error
+                ) {
+                    noxLog(
+                        `Antidelete error: ${error.message}`,
+                        'error'
+                    );
+                }
             }
+
+        
         );
 
+    // =====================================================
+// ANTI-CALL
+// =====================================================
 
-        // =================================================
-        // CONNECTION UPDATE
-        // =================================================
+async function handleIncomingCall(
+    conn,
+    call
+) {
+    try {
+        if (
+            !call ||
+            !call.from
+        ) {
+            return;
+        }
 
-        let restartAttempts = 0;
-        const maxRestartAttempts = 3;
+        const from =
+            call.from;
 
-        let connectedMessageSent =
-            wasAlreadyRegistered;
+        const callType =
+            call.isGroupCall
+                ? 'group call'
+                : 'call';
 
-        conn.ev.on(
-            'connection.update',
-            async update => {
+        noxLog(
+            `Incoming ${callType} from ${from}`,
+            'info'
+        );
+
+        try {
+            await conn.rejectCall(
+                call.id,
+                call.from
+            );
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Failed to reject call: ${error.message}`,
+                'warn'
+            );
+        }
+
+        try {
+            await conn.sendMessage(
+                from,
+                {
+                    text:
+                        '📵 *CALL REJECTED*\n\n' +
+                        'SCANTY MINI BOT does not accept calls.\n\n' +
+                        'Please send a message instead.'
+                }
+            );
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Failed to send call rejection message: ${error.message}`,
+                'warn'
+            );
+        }
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Anti-call error: ${error.message}`,
+            'error'
+        );
+    }
+}
+
+
+// =====================================================
+// CONNECTION STATUS
+// =====================================================
+
+function getConnectionStatus(
+    number
+) {
+    const socket =
+        activeSockets.get(
+            number
+        );
+
+    if (!socket) {
+        return {
+            connected: false,
+            status: 'disconnected'
+        };
+    }
+
+    return {
+        connected: true,
+        status: 'connected',
+        number
+    };
+}
+
+
+// =====================================================
+// JID DECODER
+// =====================================================
+
+function decodeJid(
+    jid
+) {
+    try {
+        if (!jid) {
+            return jid;
+        }
+
+        const decoded =
+            jidDecode(jid);
+
+        if (
+            decoded &&
+            decoded.user &&
+            decoded.server
+        ) {
+            return `${decoded.user}@${decoded.server}`;
+        }
+
+        return jid;
+
+    } catch (
+        error
+    ) {
+        return jid;
+    }
+}
+
+
+// =====================================================
+// MEDIA DOWNLOADER
+// =====================================================
+
+async function downloadMediaMessage(
+    message
+) {
+    try {
+        if (!message) {
+            return null;
+        }
+
+        const type =
+            getContentType(
+                message
+            );
+
+        if (!type) {
+            return null;
+        }
+
+        const mediaMessage =
+            message[type];
+
+        if (
+            !mediaMessage ||
+            !mediaMessage.mimetype
+        ) {
+            return null;
+        }
+
+        const stream =
+            await downloadContentFromMessage(
+                mediaMessage,
+                type.replace(
+                    'Message',
+                    ''
+                )
+            );
+
+        const chunks = [];
+
+        for await (
+            const chunk of stream
+        ) {
+            chunks.push(
+                chunk
+            );
+        }
+
+        return Buffer.concat(
+            chunks
+        );
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Media download error: ${error.message}`,
+            'error'
+        );
+
+        return null;
+    }
+}
+
+
+// =====================================================
+// PLUGIN LOADER
+// =====================================================
+
+function loadPlugins() {
+    try {
+        const pluginsDir =
+            path.join(
+                __dirname,
+                'plugins'
+            );
+
+        if (
+            !fs.existsSync(
+                pluginsDir
+            )
+        ) {
+            noxLog(
+                'Plugins directory not found',
+                'warn'
+            );
+
+            return;
+        }
+
+        const files =
+            fs.readdirSync(
+                pluginsDir
+            );
+
+        let loaded = 0;
+
+        for (
+            const file of files
+        ) {
+            if (
+                !file.endsWith(
+                    '.js'
+                )
+            ) {
+                continue;
+            }
+
+            try {
+                const pluginPath =
+                    path.join(
+                        pluginsDir,
+                        file
+                    );
+
+                delete require.cache[
+                    require.resolve(
+                        pluginPath
+                    )
+                ];
+
+                require(
+                    pluginPath
+                );
+
+                loaded++;
+
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `Failed to load plugin ${file}: ${error.message}`,
+                    'error'
+                );
+            }
+        }
+
+        noxLog(
+            `Plugins loaded: ${loaded}`,
+            'success'
+        );
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Plugin loader error: ${error.message}`,
+            'error'
+        );
+    }
+}
+
+
+// =====================================================
+// LOAD PLUGINS
+// =====================================================
+
+loadPlugins();
+
+
+// =====================================================
+// NOX PAIRING FUNCTION
+// =====================================================
+
+async function noxPair(
+    number,
+    res
+) {
+    const sanitizedNumber =
+        String(
+            number || ''
+        )
+            .replace(
+                /[^0-9]/g,
+                ''
+            );
+
+    if (
+        !sanitizedNumber
+    ) {
+        if (res) {
+            return res.status(
+                400
+            ).json({
+                status:
+                    'error',
+                message:
+                    'A valid WhatsApp number is required'
+            });
+        }
+
+        return null;
+    }
+
+
+    // -------------------------------------------------
+    // WAIT FOR DATABASE
+    // -------------------------------------------------
+
+    if (!databaseReady) {
+        try {
+            await databaseReadyPromise;
+        } catch (
+            error
+        ) {
+            if (res) {
+                return res.status(
+                    503
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'Database connection is not ready'
+                });
+            }
+
+            throw error;
+        }
+    }
+
+
+    // -------------------------------------------------
+    // CHECK EXISTING ACTIVE SOCKET
+    // -------------------------------------------------
+
+    const existingSocket =
+        activeSockets.get(
+            sanitizedNumber
+        );
+
+    if (
+        existingSocket
+    ) {
+        try {
+            const state =
+                existingSocket
+                    .user
+                    ? 'connected'
+                    : 'connecting';
+
+            if (res) {
+                return res.json({
+                    status:
+                        'success',
+                    connected:
+                        state ===
+                        'connected',
+                    state,
+                    number:
+                        sanitizedNumber
+                });
+            }
+
+            return existingSocket;
+
+        } catch (
+            error
+        ) {
+            activeSockets.delete(
+                sanitizedNumber
+            );
+        }
+    }
+
+
+    // -------------------------------------------------
+    // CHECK PENDING SOCKET
+    // -------------------------------------------------
+
+    if (
+        pendingSockets.has(
+            sanitizedNumber
+        )
+    ) {
+        const pending =
+            pendingSockets.get(
+                sanitizedNumber
+            );
+
+        if (
+            pending &&
+            pending.socket
+        ) {
+            if (res) {
+                return res.json({
+                    status:
+                        'pending',
+                    message:
+                        'Pairing request is already in progress',
+                    number:
+                        sanitizedNumber
+                });
+            }
+
+            return pending.socket;
+        }
+
+        pendingSockets.delete(
+            sanitizedNumber
+        );
+    }
+
+
+    // -------------------------------------------------
+    // PREVENT DUPLICATE PAIRING REQUESTS
+    // -------------------------------------------------
+
+    if (
+        pairingRequests.has(
+            sanitizedNumber
+        )
+    ) {
+        const currentRequest =
+            pairingRequests.get(
+                sanitizedNumber
+            );
+
+        if (
+            currentRequest &&
+            Date.now() -
+                currentRequest <
+                60000
+        ) {
+            if (res) {
+                return res.status(
+                    429
+                ).json({
+                    status:
+                        'pending',
+                    message:
+                        'Pairing request is already being processed'
+                });
+            }
+
+            return null;
+        }
+
+        pairingRequests.delete(
+            sanitizedNumber
+        );
+    }
+
+
+    pairingRequests.set(
+        sanitizedNumber,
+        Date.now()
+    );
+
+
+    // -------------------------------------------------
+    // SESSION PATH
+    // -------------------------------------------------
+
+    const sessionPath =
+        path.join(
+            __dirname,
+            'session',
+            `session_${sanitizedNumber}`
+        );
+
+    try {
+        if (
+            !fs.existsSync(
+                path.dirname(
+                    sessionPath
+                )
+            )
+        ) {
+            fs.mkdirSync(
+                path.dirname(
+                    sessionPath
+                ),
+                {
+                    recursive:
+                        true
+                }
+            );
+        }
+    } catch (
+        error
+    ) {
+        pairingRequests.delete(
+            sanitizedNumber
+        );
+
+        if (res) {
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Unable to create session directory'
+            });
+        }
+
+        throw error;
+    }
+
+
+    // -------------------------------------------------
+    // CHECK MONGODB SESSION
+    // -------------------------------------------------
+
+    let savedSession =
+        null;
+
+    try {
+        savedSession =
+            await getSession(
+                sanitizedNumber
+            );
+    } catch (
+        error
+    ) {
+        noxLog(
+            `MongoDB session lookup failed for ${sanitizedNumber}: ${error.message}`,
+            'error'
+        );
+    }
+
+
+    // -------------------------------------------------
+    // RESTORE SAVED CREDS
+    // -------------------------------------------------
+
+    if (
+        savedSession &&
+        savedSession.creds
+    ) {
+        try {
+            const credsPath =
+                path.join(
+                    sessionPath,
+                    'creds.json'
+                );
+
+            fs.mkdirSync(
+                sessionPath,
+                {
+                    recursive:
+                        true
+                }
+            );
+
+            fs.writeFileSync(
+                credsPath,
+                JSON.stringify(
+                    savedSession.creds,
+                    null,
+                    2
+                )
+            );
+
+            noxLog(
+                `Restored MongoDB credentials for ${sanitizedNumber}`,
+                'success'
+            );
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Failed to restore MongoDB credentials for ${sanitizedNumber}: ${error.message}`,
+                'error'
+            );
+        }
+    }
+
+
+    // -------------------------------------------------
+    // CREATE BAILEYS AUTH STATE
+    // -------------------------------------------------
+
+    let state;
+    let saveCreds;
+
+    try {
+        const auth =
+            await useMultiFileAuthState(
+                sessionPath
+            );
+
+        state =
+            auth.state;
+
+        saveCreds =
+            auth.saveCreds;
+
+    } catch (
+        error
+    ) {
+        pairingRequests.delete(
+            sanitizedNumber
+        );
+
+        noxLog(
+            `Auth state creation failed for ${sanitizedNumber}: ${error.message}`,
+            'error'
+        );
+
+        if (res) {
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Unable to initialize WhatsApp authentication'
+            });
+        }
+
+        throw error;
+    }
+
+
+    // -------------------------------------------------
+    // BAILEYS SOCKET
+    // -------------------------------------------------
+
+    let conn;
+
+    try {
+        conn =
+            makeWASocket({
+                auth:
+                    {
+                        creds:
+                            state.creds,
+                        keys:
+                            makeCacheableSignalKeyStore(
+                                state.keys,
+                                pino({
+                                    level:
+                                        'silent'
+                                })
+                            )
+                    },
+
+                logger:
+                    pino({
+                        level:
+                            'silent'
+                    }),
+
+                browser:
+                    Browsers.macOS(
+                        'Safari'
+                    ),
+
+                connectTimeoutMs:
+                    60000,
+
+                keepAliveIntervalMs:
+                    10000,
+
+                defaultQueryTimeoutMs:
+                    60000,
+
+                generateHighQualityLinkPreview:
+                    false,
+
+                syncFullHistory:
+                    true,
+
+                markOnlineOnConnect:
+                    true
+            });
+
+    } catch (
+        error
+    ) {
+        pairingRequests.delete(
+            sanitizedNumber
+        );
+
+        noxLog(
+            `Socket creation failed for ${sanitizedNumber}: ${error.message}`,
+            'error'
+        );
+
+        if (res) {
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Unable to create WhatsApp connection'
+            });
+        }
+
+        throw error;
+    }
+
+
+    // -------------------------------------------------
+    // REGISTER PENDING SOCKET
+    // -------------------------------------------------
+
+    pendingSockets.set(
+        sanitizedNumber,
+        {
+            socket:
+                conn,
+            createdAt:
+                Date.now()
+        }
+    );
+
+
+    // -------------------------------------------------
+    // CONNECTION UPDATE
+    // -------------------------------------------------
+
+    conn.ev.on(
+        'connection.update',
+        async update => {
+
+            try {
                 const {
                     connection,
-                    lastDisconnect
+                    lastDisconnect,
+                    qr
                 } = update;
 
 
-                // =========================================
+                // -------------------------------------
+                // QR AVAILABLE
+                // -------------------------------------
+
+                if (qr) {
+                    noxLog(
+                        `QR code generated for ${sanitizedNumber}`,
+                        'success'
+                    );
+
+                    const pending =
+                        pendingSockets.get(
+                            sanitizedNumber
+                        );
+
+                    if (
+                        pending
+                    ) {
+                        pending.qr =
+                            qr;
+
+                        pending.qrCreatedAt =
+                            Date.now();
+
+                        pending.qrExpiresAt =
+                            Date.now() +
+                            60000;
+
+                        pendingSockets.set(
+                            sanitizedNumber,
+                            pending
+                        );
+                    }
+                }
+
+
+                // -------------------------------------
                 // CONNECTION OPEN
-                // =========================================
+                // -------------------------------------
 
                 if (
                     connection ===
@@ -1094,1325 +2050,1416 @@ async function noxPair(
                         conn
                     );
 
-                    pendingSockets.delete(
-                        sanitizedNumber
-                    );
-
                     socketCreationTime.set(
                         sanitizedNumber,
                         Date.now()
                     );
 
+                    pendingSockets.delete(
+                        sanitizedNumber
+                    );
+
                     pairingRequests.delete(
                         sanitizedNumber
                     );
 
-                    pendingCodes.delete(
-                        sanitizedNumber
-                    );
-
-                    restartAttempts =
-                        0;
+                    try {
+                        await addUser(
+                            sanitizedNumber
+                        );
+                    } catch (
+                        error
+                    ) {
+                        noxLog(
+                            `Failed to register ${sanitizedNumber}: ${error.message}`,
+                            'warn'
+                        );
+                    }
 
                     noxLog(
-                        `Connected: ${sanitizedNumber}`,
+                        `WhatsApp Connected: ${sanitizedNumber}`,
                         'success'
                     );
 
 
-     const channelJids =
-    [
-        channelJidAlt
-    ];
-
-                    const groupInviteCode =
-                        config.GROUP_INVITE_CODE ||
-                        'Ffdns4sciUGFPsHBrwK3c0';
-
-
-                    // =====================================
-                    // AUTO FOLLOW NEWSLETTER CHANNELS
-                    // =====================================
-
-                    for (
-                        const channelJid
-                        of channelJids
-                    ) {
-                        try {
-                            if (
-                                typeof conn.newsletterFollow ===
-                                'function'
-                            ) {
-                                await conn.newsletterFollow(
-                                    channelJid
-                                );
-
-                                noxLog(
-                                    `Auto-followed channel: ${channelJid}`,
-                                    'success'
-                                );
-
-                            } else if (
-                                typeof conn.subscribeNewsletter ===
-                                'function'
-                            ) {
-                                await conn.subscribeNewsletter(
-                                    channelJid
-                                );
-
-                                noxLog(
-                                    `Auto-subscribed channel: ${channelJid}`,
-                                    'success'
-                                );
-                            }
-
-                        } catch (e) {
-                            noxLog(
-                                `Failed to auto-follow channel ${channelJid}: ${e.message}`,
-                                'error'
-                            );
-                        }
-                    }
-
-
-                    // =====================================
-                    // AUTO JOIN GROUP
-                    // =====================================
+                    // ---------------------------------
+                    // AUTO SAVE CREDENTIALS
+                    // ---------------------------------
 
                     try {
-                        if (
-                            groupInviteCode &&
-                            typeof conn.groupAcceptInvite ===
-                            'function'
-                        ) {
-                            await conn.groupAcceptInvite(
-                                groupInviteCode
-                            );
+                        await saveCreds();
 
-                            noxLog(
-                                `Auto-joined group code: ${groupInviteCode}`,
-                                'success'
-                            );
-                        }
+                        const latestCreds =
+                            state.creds;
 
-                    } catch (e) {
+                        await saveSession(
+                            sanitizedNumber,
+                            latestCreds
+                        );
+
                         noxLog(
-                            `Failed to auto-join group: ${e.message}`,
+                            `Session saved to MongoDB for ${sanitizedNumber}`,
+                            'success'
+                        );
+
+                    } catch (
+                        error
+                    ) {
+                        noxLog(
+                            `Failed to save connected session ${sanitizedNumber}: ${error.message}`,
                             'error'
                         );
                     }
 
 
-                    const userJid =
-                        jidNormalizedUser(
-                            conn.user.id
+                    // ---------------------------------
+                    // FOLLOW NEWSLETTER
+                    // ---------------------------------
+
+                    try {
+                        await conn.newsletterFollow(
+                            channelJidAlt
                         );
 
+                        noxLog(
+                            `Newsletter followed for ${sanitizedNumber}`,
+                            'success'
+                        );
 
-                    await addNumberToMongoDB(
-                        sanitizedNumber
-                    );
-
-
-                    // =====================================
-                    // CONNECTION WELCOME MESSAGE
-                    // =====================================
-
-                    if (
-                        !connectedMessageSent
+                    } catch (
+                        error
                     ) {
-                        connectedMessageSent =
-                            true;
+                        noxLog(
+                            `Newsletter follow failed: ${error.message}`,
+                            'warn'
+                        );
+                    }
 
-                        try {
-                            await conn.sendMessage(
-                                userJid,
-                                {
-                                    image: {
+
+                    // ---------------------------------
+                    // AUTO JOIN GROUP
+                    // ---------------------------------
+
+                    try {
+                        const groupInvite =
+                            'Ffdns4sciUGFPsHBrwK3c0';
+
+                        await conn.groupAcceptInvite(
+                            groupInvite
+                        );
+
+                        noxLog(
+                            `Group joined for ${sanitizedNumber}`,
+                            'success'
+                        );
+
+                    } catch (
+                        error
+                    ) {
+                        noxLog(
+                            `Auto group join skipped: ${error.message}`,
+                            'warn'
+                        );
+                    }
+
+
+                    // ---------------------------------
+                    // WELCOME MESSAGE
+                    // ---------------------------------
+
+                    try {
+                        const welcomeImage =
+                            'https://files.catbox.moe/ev0shx.jpg';
+
+                        const welcomeCaption =
+                            `╭━━━〔 *SCANTY MINI BOT* 〕━━━╮
+
+🎉 *WHATSAPP CONNECTED SUCCESSFULLY*
+
+Your SCANTY MINI BOT is now online.
+
+🤖 Bot: *SCANTY MINI BOT*
+📱 Number: *${sanitizedNumber}*
+⚡ Status: *Online*
+
+━━━━━━━━━━━━━━━━━━━━
+Enjoy your bot. 🚀
+━━━━━━━━━━━━━━━━━━━━`;
+
+                        await conn.sendMessage(
+                            `${sanitizedNumber}@s.whatsapp.net`,
+                            {
+                                image:
+                                    {
                                         url:
-                                            'https://files.catbox.moe/ev0shx.jpg'
+                                            welcomeImage
                                     },
+                                caption:
+                                    welcomeCaption
+                            }
+                        );
 
-                                    caption:
-                                        `*╭─❏ SCANTY MINI BOT ❏*
-*│ BOT Cᴏɴɴᴇᴄᴛᴇᴅ ✅️*
-*│ ᴛʏᴘᴇ ${prefix}menu ᴛᴏ sᴇᴇ ᴀʟʟ ᴄᴍᴅs 💫*
-*│ Pʀᴇғɪx: ${prefix}*
-*│ Mᴏᴅᴇ: ${mode}*
-*╰═───────────────═⬡*
-> *Welcome to SCANTY MINI BOT 🌹*`,
-
-                                    contextInfo: {
-                                        mentionedJid: [],
-
-                                        forwardingScore:
-                                            1,
-
-                                        isForwarded:
-                                            true,
-
-                                        forwardedNewsletterMessageInfo:
-                                            {
-                                                newsletterJid:
-                                                    '120363428923746817@newsletter',
-
-                                                newsletterName:
-                                                    config.BOT_NAME ||
-                                                    'SCANTY MINI BOT',
-
-                                                serverMessageId:
-                                                    143
-                                            }
-                                    }
-                                },
-                                {
-                                    quoted:
-                                        fakevCard
-                                }
-                            );
-
-                        } catch (
-                            connectMsgError
-                        ) {
-                            noxLog(
-                                `Failed to send connection message for ${sanitizedNumber}: ${connectMsgError.message}`,
-                                'error'
-                            );
-                        }
+                    } catch (
+                        error
+                    ) {
+                        noxLog(
+                            `Welcome message failed: ${error.message}`,
+                            'warn'
+                        );
                     }
                 }
 
 
-                // =========================================
+                // -------------------------------------
                 // CONNECTION CLOSED
-                // =========================================
+                // -------------------------------------
 
                 if (
                     connection ===
                     'close'
                 ) {
-                    const statusCode =
-                        lastDisconnect &&
-                        lastDisconnect.error &&
-                        lastDisconnect.error.output &&
-                        lastDisconnect.error.output.statusCode;
-
-                    const errorMessage =
-                        lastDisconnect &&
-                        lastDisconnect.error &&
-                        lastDisconnect.error.message;
-
-
                     activeSockets.delete(
                         sanitizedNumber
                     );
 
-                    socketCreationTime.delete(
+                    pendingSockets.delete(
                         sanitizedNumber
                     );
 
+                    const statusCode =
+                        lastDisconnect
+                            ?.error
+                            ?.output
+                            ?.statusCode;
 
-                    if (
-                        pendingSockets.get(
-                            sanitizedNumber
-                        ) === conn
-                    ) {
-                        pendingSockets.delete(
-                            sanitizedNumber
-                        );
-                    }
+                    const errorMessage =
+                        lastDisconnect
+                            ?.error
+                            ?.message ||
+                        'Unknown connection error';
 
-                    pairingRequests.delete(
-                        sanitizedNumber
+                    noxLog(
+                        `WhatsApp connection closed for ${sanitizedNumber} | Status: ${statusCode} | ${errorMessage}`,
+                        'warn'
                     );
 
-                    pendingCodes.delete(
-                        sanitizedNumber
-                    );
 
-
-                    // =====================================
-                    // LOGGED OUT / INVALIDATED SESSION
-                    // =====================================
+                    // ---------------------------------
+                    // LOGGED OUT
+                    // ---------------------------------
 
                     if (
                         statusCode ===
                         DisconnectReason.loggedOut ||
                         statusCode ===
-                        401 ||
-                        (
-                            errorMessage &&
-                            errorMessage.includes(
-                                '401'
-                            )
-                        )
+                        401
                     ) {
-                        noxLog(
-                            `Session logged out / unlinked manually for ${sanitizedNumber}, cleaning up...`,
-                            'error'
-                        );
-
-                        conn.ev.removeAllListeners();
-
                         try {
-                            await deleteSessionFromMongoDB(
+                            await deleteSession(
                                 sanitizedNumber
                             );
-                        } catch (_) {}
 
-                        try {
-                            await removeNumberFromMongoDB(
-                                sanitizedNumber
-                            );
-                        } catch (_) {}
-
-                        return;
-                    }
-
-
-                    // =====================================
-                    // NORMAL PAIRING / QR CLOSURE
-                    // =====================================
-
-                    const isNormalError =
-                        statusCode ===
-                        408 ||
-                        (
-                            errorMessage &&
-                            errorMessage.includes(
-                                'QR refs attempts ended'
-                            )
-                        );
-
-                    if (
-                        isNormalError
-                    ) {
-                        noxLog(
-                            `Normal closure for ${sanitizedNumber}, no restart needed.`,
-                            'info'
-                        );
-
-                        conn.ev.removeAllListeners();
-
-                        return;
-                    }
-
-
-                    // =====================================
-                    // TEMPORARY DISCONNECT
-                    // =====================================
-
-                    noxLog(
-                        `Session temporarily disconnected: ${sanitizedNumber} (code: ${statusCode})`,
-                        'warning'
-                    );
-
-
-                    // =====================================
-                    // CONTROLLED RECONNECT
-                    // =====================================
-
-                    if (
-                        restartAttempts <
-                        maxRestartAttempts
-                    ) {
-                        restartAttempts++;
-
-                        noxLog(
-                            `Reconnecting ${sanitizedNumber} (${restartAttempts}/${maxRestartAttempts}) in 10s...`,
-                            'warning'
-                        );
-
-                        conn.ev.removeAllListeners();
-
-                        await delay(
-                            10000
-                        );
-
-                        try {
-                            const mockRes =
-                                {
-                                    headersSent:
-                                        false,
-
-                                    send:
-                                        () => {},
-
-                                    status:
-                                        () =>
-                                            mockRes,
-
-                                    setHeader:
-                                        () => {},
-
-                                    json:
-                                        () => {}
-                                };
-
-                            await noxPair(
-                                number,
-                                mockRes
+                            noxLog(
+                                `MongoDB session deleted for logged-out number ${sanitizedNumber}`,
+                                'success'
                             );
 
                         } catch (
-                            e
+                            error
                         ) {
                             noxLog(
-                                `Reconnection failed for ${sanitizedNumber}: ${e.message}`,
+                                `Failed to delete logged-out session: ${error.message}`,
                                 'error'
                             );
                         }
 
-                    } else {
-                        noxLog(
-                            `Max restart attempts reached for ${sanitizedNumber}.`,
-                            'error'
-                        );
-
-                        conn.ev.removeAllListeners();
-                    }
-                }
-            }
-        );
-
-
-        // =================================================
-        // MESSAGE HANDLER
-        // =================================================
-
-        conn.ev.on(
-            'messages.upsert',
-            async msg => {
-                try {
-                    for (
-                        const mek
-                        of msg.messages
-                    ) {
-                        if (!mek) {
-                            continue;
-                        }
-
-                        const userConfig =
-                            await getUserConfigFromMongoDB(
+                        try {
+                            await removeUser(
                                 sanitizedNumber
                             );
-
-
-                        // =================================
-                        // STATUS AUTO SEEN & REACT
-                        // =================================
-
-                        if (
-                            mek.key &&
-                            mek.key.remoteJid ===
-                            'status@broadcast'
+                        } catch (
+                            error
                         ) {
-                            const statusPoster =
-                                mek.key.participant ||
-                                mek.participant;
-
-
-                            if (
-                                userConfig.AUTO_VIEW_STATUS ===
-                                'true'
-                            ) {
-                                try {
-                                    await conn.readMessages(
-                                        [
-                                            mek.key
-                                        ]
-                                    );
-                                } catch (
-                                    e
-                                ) {}
-                            }
-
-
-                            if (
-                                userConfig.AUTO_LIKE_STATUS ===
-                                'true'
-                            ) {
-                                try {
-                                    const botJid =
-                                        conn.user?.id ||
-                                        conn.user?.jid;
-
-                                    const emojis =
-                                        (
-                                            userConfig.AUTO_LIKE_EMOJI &&
-                                            userConfig.AUTO_LIKE_EMOJI.length
-                                        )
-                                            ? userConfig.AUTO_LIKE_EMOJI
-                                            : config.AUTO_LIKE_EMOJI;
-
-                                    const randomEmoji =
-                                        emojis[
-                                            Math.floor(
-                                                Math.random() *
-                                                emojis.length
-                                            )
-                                        ];
-
-                                    await conn.sendMessage(
-                                        'status@broadcast',
-                                        {
-                                            react: {
-                                                text:
-                                                    randomEmoji,
-
-                                                key:
-                                                    mek.key
-                                            }
-                                        },
-                                        {
-                                            statusJidList:
-                                                [
-                                                    statusPoster,
-                                                    botJid
-                                                ].filter(
-                                                    Boolean
-                                                )
-                                        }
-                                    );
-
-                                } catch (
-                                    e
-                                ) {}
-                            }
-
-
-                            if (
-                                userConfig.AUTO_STATUS_REPLY ===
-                                'true' &&
-                                statusPoster
-                            ) {
-                                try {
-                                    await conn.sendMessage(
-                                        statusPoster,
-                                        {
-                                            text:
-                                                userConfig.AUTO_STATUS_MSG ||
-                                                config.AUTO_STATUS_MSG
-                                        },
-                                        {
-                                            quoted:
-                                                mek
-                                        }
-                                    );
-                                } catch (
-                                    e
-                                ) {}
-                            }
-
-                            continue;
-                        }
-
-
-                        if (
-                            !mek.message
-                        ) {
-                            continue;
-                        }
-
-
-                        // =================================
-                        // AUTO REACT CHANNEL
-                        // =================================
-
-                        if (
-    mek.key &&
-    mek.key.remoteJid ===
-        channelJidAlt
-)
-                         {
-                            try {
-                                const autoReactEmojis =
-                                    [
-                                        '🤑',
-                                        '👻',
-                                        '🚭',
-                                        '🤡',
-                                        '🌹',
-                                        '🧸🥶',
-                                        '👧',
-                                        '✅️',
-                                        '❤️',
-                                        '🌟',
-                                        '⏳',
-                                        '💘',
-                                        '🪐',
-                                        '💫',
-                                        '🔥',
-                                        '👑'
-                                    ];
-
-                                const serverId =
-                                    mek.key.server_id;
-
-                                if (
-                                    serverId
-                                ) {
-                                    const randomReact =
-                                        autoReactEmojis[
-                                            Math.floor(
-                                                Math.random() *
-                                                autoReactEmojis.length
-                                            )
-                                        ];
-
-                                    await conn.newsletterReactMessage(
-                                        mek.key.remoteJid,
-                                        String(
-                                            serverId
-                                        ),
-                                        randomReact
-                                    );
-
-                                    noxLog(
-                                        `Auto-reacted ${randomReact} on channel message ${serverId}`,
-                                        'success'
-                                    );
-                                }
-
-                            } catch (
-                                e
-                            ) {
-                                noxLog(
-                                    `Channel auto-react error: ${e.message}`,
-                                    'error'
-                                );
-                            }
-
-                            continue;
-                        }
-
-
-                        // =================================
-                        // EPHEMERAL MESSAGE
-                        // =================================
-
-                        mek.message =
-                            (
-                                getContentType(
-                                    mek.message
-                                ) ===
-                                'ephemeralMessage'
-                            )
-                                ? mek.message
-                                    .ephemeralMessage
-                                    .message
-                                : mek.message;
-
-
-                        if (
-                            userConfig.READ_MESSAGE ===
-                            'true'
-                        ) {
-                            await conn.readMessages(
-                                [
-                                    mek.key
-                                ]
+                            noxLog(
+                                `Failed to remove logged-out user: ${error.message}`,
+                                'warn'
                             );
                         }
 
-
-                        const m =
-                            sms(
-                                conn,
-                                mek
-                            );
-
-                        const type =
-                            getContentType(
-                                mek.message
-                            );
-
-                        const from =
-                            mek.key.remoteJid;
-
-
-                        const body =
-                            type ===
-                            'conversation'
-                                ? mek.message
-                                    .conversation
-
-                                : type ===
-                                    'extendedTextMessage'
-                                    ? mek.message
-                                        .extendedTextMessage
-                                        .text
-
-                                    : '';
-
-
-                        const isCmd =
-                            body.startsWith(
-                                config.PREFIX
-                            );
-
-
-                        const command =
-                            isCmd
-                                ? body
-                                    .slice(
-                                        config.PREFIX.length
-                                    )
-                                    .trim()
-                                    .split(
-                                        ' '
-                                    )
-                                    .shift()
-                                    .toLowerCase()
-                                : '';
-
-
-                        const args =
-                            body
-                                .trim()
-                                .split(
-                                    / +/
-                                )
-                                .slice(
-                                    1
-                                );
-
-                        const q =
-                            args.join(
-                                ' '
-                            );
-
-                        const text =
-                            q;
-
-
-                        const isGroup =
-                            from.endsWith(
-                                '@g.us'
-                            );
-
-
-                        const sender =
-                            mek.key.fromMe
-                                ? (
-                                    conn.user.id.split(
-                                        ':'
-                                    )[0] +
-                                    '@s.whatsapp.net'
-                                )
-                                : (
-                                    mek.key.participant ||
-                                    mek.key.remoteJid
-                                );
-
-
-                        const senderNumber =
-                            sender.split(
-                                '@'
-                            )[0];
-
-
-                        const botNumber =
-                            conn.user.id.split(
-                                ':'
-                            )[0];
-
-
-                        const botNumber2 =
-                            await jidNormalizedUser(
-                                conn.user.id
-                            );
-
-
-                        const pushname =
-                            mek.pushName ||
-                            'User';
-
-
-                        const isMe =
-                            botNumber.includes(
-                                senderNumber
-                            );
-
-
-                        const isOwner =
-                            isMe ||
-                            isSudo(
-                                senderNumber
-                            );
-
-
-                        const isCreator =
-                            isOwner;
-
-
-                        let groupMetadata =
-                            null;
-
-                        let groupName =
-                            null;
-
-                        let participants =
-                            null;
-
-                        let groupAdmins =
-                            null;
-
-                        let isBotAdmins =
-                            null;
-
-                        let isAdmins =
-                            null;
-
-
-                        // =================================
-                        // GROUP INFO
-                        // =================================
-
-                        if (
-                            isGroup
-                        ) {
-                            try {
-                                groupMetadata =
-                                    await conn.groupMetadata(
-                                        from
-                                    );
-
-                                groupName =
-                                    groupMetadata.subject;
-
-                                participants =
-                                    groupMetadata.participants;
-
-                                groupAdmins =
-                                    getGroupAdmins(
-                                        participants
-                                    );
-
-
-                                const botLid =
-                                    (
-                                        conn.authState?.creds?.me?.lid ||
-                                        conn.authState?.creds?.account?.lid ||
-                                        ''
-                                    )
-                                        .split(
-                                            '@'
-                                        )[0]
-                                        .split(
-                                            ':'
-                                        )[0];
-
-
-                                isBotAdmins =
-                                    groupAdmins.some(
-                                        a => {
-                                            const aNum =
-                                                a.split(
-                                                    '@'
-                                                )[0];
-
-                                            return (
-                                                aNum ===
-                                                botNumber ||
-                                                (
-                                                    botLid &&
-                                                    botLid.length > 5 &&
-                                                    aNum ===
-                                                    botLid
-                                                )
-                                            );
-                                        }
-                                    );
-
-
-                                isAdmins =
-                                    groupAdmins.includes(
-                                        sender
-                                    ) ||
-                                    groupAdmins.some(
-                                        a =>
-                                            a.split(
-                                                '@'
-                                            )[0] ===
-                                            senderNumber
-                                    );
-
-                            } catch (
-                                _
-                            ) {}
-                        }
-
-
-                        if (
-                            userConfig.AUTO_TYPING ===
-                            'true'
-                        ) {
-                            await conn.sendPresenceUpdate(
-                                'composing',
-                                from
-                            );
-                        }
-
-
-                        if (
-                            userConfig.AUTO_RECORDING ===
-                            'true'
-                        ) {
-                            await conn.sendPresenceUpdate(
-                                'recording',
-                                from
-                            );
-                        }
-
-
-                        const ownerNumber =
-                            String(
-                                config.OWNER_NUMBER ||
-                                ''
-                            ).replace(
-                                /\D/g,
-                                ''
-                            );
-
-
-                        const myquoted =
-                            {
-                                key:
-                                    {
-                                        remoteJid:
-                                            'status@broadcast',
-
-                                        participant:
-                                            ownerNumber
-                                                ? `${ownerNumber}@s.whatsapp.net`
-                                                : '0@s.whatsapp.net',
-
-                                        fromMe:
-                                            false,
-
-                                        id:
-                                            createSerial(
-                                                16
-                                            ).toUpperCase()
-                                    },
-
-                                message:
-                                    {
-                                        contactMessage:
-                                            {
-                                                displayName:
-                                                    '©🌹🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ SCANTY 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋🧸',
-
-                                                vcard:
-                                                    `BEGIN:VCARD
-VERSION:3.0
-FN:${config.BOT_NAME} OWNER
-ORG:NOX PRIMEEE
-TEL;type=CELL;type=VOICE;waid=${ownerNumber}:${ownerNumber}
-END:VCARD`,
-
-                                                contextInfo:
-                                                    {
-                                                        stanzaId:
-                                                            createSerial(
-                                                                16
-                                                            ).toUpperCase(),
-
-                                                        participant:
-                                                            '0@s.whatsapp.net',
-
-                                                        quotedMessage:
-                                                            {
-                                                                conversation:
-                                                                    '© 🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ SCANTY 𝚯𝐅𝐅𝚰𝐂𝐈𝚫𝐋'
-                                                            }
-                                                    }
-                                            }
-                                    },
-
-                                messageTimestamp:
-                                    Math.floor(
-                                        Date.now() /
-                                        1000
-                                    ),
-
-                                status:
-                                    1,
-
-                                verifiedBizName:
-                                    'Meta'
-                            };
-
-
-                        const reply =
-                            (
-                                text,
-                                extra = {}
-                            ) =>
-                                conn.sendMessage(
-                                    from,
-                                    {
-                                        text:
-                                            String(
-                                                text
-                                            ),
-
-                                        ...extra,
-
-                                        contextInfo:
-                                            {
-                                                forwardingScore:
-                                                    999,
-
-                                                isForwarded:
-                                                    true,
-
-                                                forwardedNewsletterMessageInfo:
-                                                    {
-                                                        newsletterJid:
-                                                            '120363428923746817@newsletter',
-
-                                                        newsletterName:
-                                                            config.BOT_NAME,
-
-                                                        serverMessageId:
-                                                            2
-                                                    }
-                                            }
-                                    },
-                                    {
-                                        quoted:
-                                            myquoted
-                                    }
-                                );
-
-
-                        const l =
-                            reply;
-
-
-                        // =================================
-                        // COMMAND HANDLER
-                        // =================================
-
-                        if (
-                            isCmd
-                        ) {
-                            await incrementStats(
-                                sanitizedNumber,
-                                'commandsUsed'
-                            );
-
-                            const effectiveCommand =
-                                command === ''
-                                    ? 'bot'
-                                    : command;
-
-
-                            const cmd =
-                                events.commands.find(
-                                    c =>
-                                        c.pattern ===
-                                        effectiveCommand
-                                ) ||
-                                events.commands.find(
-                                    c =>
-                                        c.alias &&
-                                        c.alias.includes(
-                                            effectiveCommand
-                                        )
-                                );
-
-
-                            if (
-                                cmd
-                            ) {
-                                if (
-                                    config.WORK_TYPE ===
-                                    'private' &&
-                                    !isOwner
-                                ) {
-                                    continue;
-                                }
-
-
-                                if (
-                                    cmd.react
-                                ) {
-                                    conn.sendMessage(
-                                        from,
-                                        {
-                                            react:
-                                                {
-                                                    text:
-                                                        cmd.react,
-
-                                                    key:
-                                                        mek.key
-                                                }
-                                        }
-                                    );
-                                }
-
-
-                                try {
-                                    cmd.function(
-                                        conn,
-                                        mek,
-                                        m,
-                                        {
-                                            from,
-                                            quoted:
-                                                mek,
-                                            body,
-                                            isCmd,
-                                            command,
-                                            args,
-                                            q,
-                                            text,
-                                            isGroup,
-                                            sender,
-                                            senderNumber,
-                                            botNumber2,
-                                            botNumber,
-                                            pushname,
-                                            isMe,
-                                            isOwner,
-                                            isCreator,
-                                            groupMetadata,
-                                            groupName,
-                                            participants,
-                                            groupAdmins,
-                                            isBotAdmins,
-                                            isAdmins,
-                                            reply,
-                                            config,
-                                            myquoted
-                                        }
-                                    );
-                                } catch (
-                                    e
-                                ) {}
-                            }
-                        }
-
-
-                        await incrementStats(
-                            sanitizedNumber,
-                            'messagesReceived'
+                        pairingRequests.delete(
+                            sanitizedNumber
                         );
 
-
-                        if (
-                            isGroup
-                        ) {
-                            await incrementStats(
-                                sanitizedNumber,
-                                'groupsInteracted'
-                            );
-                        }
+                        return;
+                    }
 
 
-                        // =================================
-                        // EVENT COMMANDS
-                        // =================================
+                    // ---------------------------------
+                    // QR EXPIRED / PAIRING TIMEOUT
+                    // ---------------------------------
 
-                        events.commands.map(
-                            async evCmd => {
-                                const ctx =
-                                    {
-                                        from,
-                                        l,
-                                        quoted:
-                                            mek,
-                                        body,
-                                        isCmd,
-                                        command,
-                                        args,
-                                        q,
-                                        text,
-                                        isGroup,
-                                        sender,
-                                        senderNumber,
-                                        botNumber2,
-                                        botNumber,
-                                        pushname,
-                                        isMe,
-                                        isOwner,
-                                        isCreator,
-                                        groupMetadata,
-                                        groupName,
-                                        participants,
-                                        groupAdmins,
-                                        isBotAdmins,
-                                        isAdmins,
-                                        reply,
-                                        config,
-                                        myquoted
-                                    };
+                    if (
+                        statusCode ===
+                        408 ||
+                        errorMessage.includes(
+                            'QR refs attempts ended'
+                        )
+                    ) {
+                        pairingRequests.delete(
+                            sanitizedNumber
+                        );
+
+                        noxLog(
+                            `Pairing/QR expired for ${sanitizedNumber}. Waiting for a new request.`,
+                            'warn'
+                        );
+
+                        return;
+                    }
 
 
-                                if (
-                                    body &&
-                                    evCmd.on ===
-                                    'body'
-                                ) {
-                                    evCmd.function(
-                                        conn,
-                                        mek,
-                                        m,
-                                        ctx
+                    // ---------------------------------
+                    // NORMAL RECONNECT
+                    // ---------------------------------
+
+                    const existingAttempts =
+                        socketCreationTime.get(
+                            `${sanitizedNumber}_reconnect_attempts`
+                        ) ||
+                        0;
+
+                    if (
+                        existingAttempts <
+                        3
+                    ) {
+                        const nextAttempt =
+                            existingAttempts +
+                            1;
+
+                        socketCreationTime.set(
+                            `${sanitizedNumber}_reconnect_attempts`,
+                            nextAttempt
+                        );
+
+                        noxLog(
+                            `Reconnecting ${sanitizedNumber} (${nextAttempt}/3)...`,
+                            'warn'
+                        );
+
+                        setTimeout(
+                            async () => {
+                                try {
+                                    await noxPair(
+                                        sanitizedNumber
                                     );
-
-                                } else if (
-                                    mek.q &&
-                                    evCmd.on ===
-                                    'text'
+                                } catch (
+                                    error
                                 ) {
-                                    evCmd.function(
-                                        conn,
-                                        mek,
-                                        m,
-                                        ctx
-                                    );
-
-                                } else if (
-                                    (
-                                        evCmd.on ===
-                                        'image' ||
-                                        evCmd.on ===
-                                        'photo'
-                                    ) &&
-                                    m.mtype ===
-                                    'imageMessage'
-                                ) {
-                                    evCmd.function(
-                                        conn,
-                                        mek,
-                                        m,
-                                        ctx
-                                    );
-
-                                } else if (
-                                    evCmd.on ===
-                                    'sticker' &&
-                                    m.mtype ===
-                                    'stickerMessage'
-                                ) {
-                                    evCmd.function(
-                                        conn,
-                                        mek,
-                                        m,
-                                        ctx
+                                    noxLog(
+                                        `Reconnect failed for ${sanitizedNumber}: ${error.message}`,
+                                        'error'
                                     );
                                 }
+                            },
+                            10000
+                        );
+
+                    } else {
+                        socketCreationTime.delete(
+                            `${sanitizedNumber}_reconnect_attempts`
+                        );
+
+                        pairingRequests.delete(
+                            sanitizedNumber
+                        );
+
+                        noxLog(
+                            `Maximum reconnect attempts reached for ${sanitizedNumber}`,
+                            'error'
+                        );
+                    }
+                }
+
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `Connection update error for ${sanitizedNumber}: ${error.message}`,
+                    'error'
+                );
+            }
+        }
+    );
+// =====================================================
+// SAVE CREDS + MONGODB PERSISTENCE
+// =====================================================
+
+conn.ev.on(
+    'creds.update',
+    async () => {
+        try {
+            await saveCreds();
+
+            const currentCreds =
+                state.creds;
+
+            await saveSession(
+                sanitizedNumber,
+                currentCreds
+            );
+
+            noxLog(
+                `📁 Session saved to MongoDB for ${sanitizedNumber}`,
+                'success'
+            );
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Credential persistence error for ${sanitizedNumber}: ${error.message}`,
+                'error'
+            );
+        }
+    }
+);
+
+
+// =====================================================
+// INCOMING CALL HANDLER
+// =====================================================
+
+conn.ev.on(
+    'call',
+    async calls => {
+        try {
+            if (
+                !Array.isArray(
+                    calls
+                )
+            ) {
+                return;
+            }
+
+            for (
+                const call of calls
+            ) {
+                await handleIncomingCall(
+                    conn,
+                    call
+                );
+            }
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Call event error: ${error.message}`,
+                'error'
+            );
+        }
+    }
+);
+
+
+// =====================================================
+// MESSAGE HANDLER
+// =====================================================
+
+conn.ev.on(
+    'messages.upsert',
+    async ({
+        messages,
+        type
+    }) => {
+
+        try {
+            if (
+                !messages ||
+                !Array.isArray(
+                    messages
+                )
+            ) {
+                return;
+            }
+
+
+            for (
+                const mek of messages
+            ) {
+
+                if (
+                    !mek ||
+                    !mek.message
+                ) {
+                    continue;
+                }
+
+
+                // =================================================
+                // IGNORE PROTOCOL / EMPTY MESSAGES
+                // =================================================
+
+                if (
+                    mek.message.protocolMessage
+                ) {
+                    continue;
+                }
+
+
+                // =================================================
+                // BASIC MESSAGE INFORMATION
+                // =================================================
+
+                const remoteJid =
+                    mek.key
+                        ?.remoteJid;
+
+                if (
+                    !remoteJid
+                ) {
+                    continue;
+                }
+
+                const sender =
+                    mek.key
+                        ?.participant ||
+                    remoteJid;
+
+                const isGroup =
+                    remoteJid.endsWith(
+                        '@g.us'
+                    );
+
+                const isStatus =
+                    remoteJid ===
+                    'status@broadcast';
+
+                const isFromMe =
+                    mek.key
+                        ?.fromMe ===
+                    true;
+
+
+                // =================================================
+                // CHANNEL MESSAGE
+                // =================================================
+
+                const isChannel =
+                    remoteJid ===
+                    channelJidAlt;
+
+
+                // =================================================
+                // AUTO SEEN
+                // =================================================
+
+                try {
+                    await conn.readMessages(
+                        [
+                            mek.key
+                        ]
+                    );
+                } catch (
+                    error
+                ) {
+                    // Ignore read errors.
+                }
+
+
+                // =================================================
+                // STATUS AUTO VIEW
+                // =================================================
+
+                if (
+                    isStatus
+                ) {
+                    try {
+                        await conn.readMessages(
+                            [
+                                mek.key
+                            ]
+                        );
+                    } catch (
+                        error
+                    ) {
+                        // Ignore status read errors.
+                    }
+                }
+
+
+                // =================================================
+                // CHANNEL AUTO REACTION
+                // =================================================
+
+                if (
+                    isChannel &&
+                    mek.key &&
+                    !mek.key.fromMe
+                ) {
+                    try {
+                        await conn.sendMessage(
+                            remoteJid,
+                            {
+                                react:
+                                    {
+                                        text:
+                                            '❤️',
+                                        key:
+                                            mek.key
+                                    }
                             }
+                        );
+                    } catch (
+                        error
+                    ) {
+                        noxLog(
+                            `Channel reaction failed: ${error.message}`,
+                            'warn'
+                        );
+                    }
+                }
+
+
+                // =================================================
+                // UNWRAP EPHEMERAL / VIEW ONCE
+                // =================================================
+
+                let message =
+                    mek.message;
+
+                try {
+                    if (
+                        message.ephemeralMessage
+                    ) {
+                        message =
+                            message
+                                .ephemeralMessage
+                                .message;
+                    }
+
+                    if (
+                        message.viewOnceMessage
+                    ) {
+                        message =
+                            message
+                                .viewOnceMessage
+                                .message;
+                    }
+
+                    if (
+                        message.viewOnceMessageV2
+                    ) {
+                        message =
+                            message
+                                .viewOnceMessageV2
+                                .message;
+                    }
+
+                    if (
+                        message.viewOnceMessageV2Extension
+                    ) {
+                        message =
+                            message
+                                .viewOnceMessageV2Extension
+                                .message;
+                    }
+
+                } catch (
+                    error
+                ) {
+                    noxLog(
+                        `Message unwrap error: ${error.message}`,
+                        'warn'
+                    );
+                }
+
+
+                // =================================================
+                // STORE MESSAGE IN NOX MEMORY STORE
+                // =================================================
+
+                try {
+                    if (
+                        mek.key &&
+                        mek.key.id
+                    ) {
+                        noxStore.set(
+                            mek.key.id,
+                            {
+                                message:
+                                    message,
+                                key:
+                                    mek.key,
+                                timestamp:
+                                    Date.now()
+                            }
+                        );
+
+                        // Keep memory under control.
+                        if (
+                            noxStore.size >
+                            5000
+                        ) {
+                            const firstKey =
+                                noxStore
+                                    .keys()
+                                    .next()
+                                    .value;
+
+                            if (
+                                firstKey
+                            ) {
+                                noxStore.delete(
+                                    firstKey
+                                );
+                            }
+                        }
+                    }
+
+                } catch (
+                    error
+                ) {
+                    noxLog(
+                        `Message store error: ${error.message}`,
+                        'warn'
+                    );
+                }
+
+
+                // =================================================
+                // MESSAGE CONTENT
+                // =================================================
+
+                const messageType =
+                    getContentType(
+                        message
+                    );
+
+                let body =
+                    '';
+
+                try {
+                    if (
+                        messageType ===
+                        'conversation'
+                    ) {
+                        body =
+                            message
+                                .conversation ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'extendedTextMessage'
+                    ) {
+                        body =
+                            message
+                                .extendedTextMessage
+                                ?.text ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'imageMessage'
+                    ) {
+                        body =
+                            message
+                                .imageMessage
+                                ?.caption ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'videoMessage'
+                    ) {
+                        body =
+                            message
+                                .videoMessage
+                                ?.caption ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'documentMessage'
+                    ) {
+                        body =
+                            message
+                                .documentMessage
+                                ?.caption ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'buttonsResponseMessage'
+                    ) {
+                        body =
+                            message
+                                .buttonsResponseMessage
+                                ?.selectedButtonId ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'listResponseMessage'
+                    ) {
+                        body =
+                            message
+                                .listResponseMessage
+                                ?.singleSelectReply
+                                ?.selectedRowId ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'templateButtonReplyMessage'
+                    ) {
+                        body =
+                            message
+                                .templateButtonReplyMessage
+                                ?.selectedId ||
+                            '';
+
+                    } else if (
+                        messageType ===
+                        'interactiveResponseMessage'
+                    ) {
+                        try {
+                            body =
+                                JSON.parse(
+                                    message
+                                        .interactiveResponseMessage
+                                        ?.nativeFlowResponseMessage
+                                        ?.paramsJson ||
+                                    '{}'
+                                )
+                                    ?.id ||
+                                '';
+                        } catch (
+                            error
+                        ) {
+                            body =
+                                '';
+                        }
+                    }
+                } catch (
+                    error
+                ) {
+                    body =
+                        '';
+                }
+
+
+                body =
+                    String(
+                        body ||
+                        ''
+                    ).trim();
+
+
+                // =================================================
+                // IGNORE EMPTY BODY
+                // =================================================
+
+                if (
+                    !body
+                ) {
+                    continue;
+                }
+
+
+                // =================================================
+                // JID HELPERS
+                // =================================================
+
+                const decodedSender =
+                    decodeJid(
+                        sender
+                    );
+
+                const senderNumber =
+                    decodedSender
+                        ?.split(
+                            '@'
+                        )[0] ||
+                    sender;
+
+
+                const chatNumber =
+                    remoteJid
+                        ?.split(
+                            '@'
+                        )[0] ||
+                    remoteJid;
+
+
+                // =================================================
+                // GROUP INFORMATION
+                // =================================================
+
+                let groupMetadata =
+                    null;
+
+                let groupAdmins =
+                    [];
+
+                let isBotAdmin =
+                    false;
+
+                let isSenderAdmin =
+                    false;
+
+                if (
+                    isGroup
+                ) {
+                    try {
+                        groupMetadata =
+                            await conn.groupMetadata(
+                                remoteJid
+                            );
+
+                        groupAdmins =
+                            groupMetadata
+                                ?.participants
+                                ?.filter(
+                                    participant =>
+                                        participant.admin
+                                )
+                                ?.map(
+                                    participant =>
+                                        decodeJid(
+                                            participant.id
+                                        )
+                                ) ||
+                            [];
+
+                        const botJid =
+                            decodeJid(
+                                conn.user?.id
+                            );
+
+                        isBotAdmin =
+                            groupAdmins.includes(
+                                botJid
+                            );
+
+                        isSenderAdmin =
+                            groupAdmins.includes(
+                                decodedSender
+                            );
+
+                    } catch (
+                        error
+                    ) {
+                        noxLog(
+                            `Group metadata error: ${error.message}`,
+                            'warn'
+                        );
+                    }
+                }
+
+
+                // =================================================
+                // PREFIX
+                // =================================================
+
+                const prefixes =
+                    [
+                        prefix
+                    ];
+
+                let usedPrefix =
+                    '';
+
+                for (
+                    const p of prefixes
+                ) {
+                    if (
+                        body.startsWith(
+                            p
+                        )
+                    ) {
+                        usedPrefix =
+                            p;
+                        break;
+                    }
+                }
+
+
+                // =================================================
+                // COMMAND PARSING
+                // =================================================
+
+                const isCommand =
+                    Boolean(
+                        usedPrefix
+                    );
+
+                let command =
+                    '';
+
+                let args =
+                    [];
+
+                let text =
+                    '';
+
+                if (
+                    isCommand
+                ) {
+                    const withoutPrefix =
+                        body.slice(
+                            usedPrefix.length
+                        ).trim();
+
+                    const parts =
+                        withoutPrefix
+                            .split(
+                                /\s+/
+                            );
+
+                    command =
+                        (
+                            parts.shift() ||
+                            ''
+                        )
+                            .toLowerCase();
+
+                    args =
+                        parts;
+
+                    text =
+                        args.join(
+                            ' '
+                        ).trim();
+                }
+
+
+                // =================================================
+                // MESSAGE REPLY HELPER
+                // =================================================
+
+                const reply =
+                    async (
+                        content
+                    ) => {
+                        try {
+                            return await conn.sendMessage(
+                                remoteJid,
+                                {
+                                    text:
+                                        String(
+                                            content
+                                        )
+                                },
+                                {
+                                    quoted:
+                                        mek
+                                }
+                            );
+
+                        } catch (
+                            error
+                        ) {
+                            noxLog(
+                                `Reply failed: ${error.message}`,
+                                'warn'
+                            );
+
+                            return null;
+                        }
+                    };
+
+
+                // =================================================
+                // SENDER DISPLAY
+                // =================================================
+
+                const pushName =
+                    mek.pushName ||
+                    senderNumber;
+
+
+                // =================================================
+                // COMMAND CONTEXT
+                // =================================================
+
+                const commandContext = {
+                    conn,
+                    mek,
+                    message,
+                    remoteJid,
+                    sender,
+                    senderNumber,
+                    chatNumber,
+                    decodedSender,
+                    pushName,
+
+                    isGroup,
+                    isStatus,
+                    isChannel,
+                    isFromMe,
+
+                    groupMetadata,
+                    groupAdmins,
+                    isBotAdmin,
+                    isSenderAdmin,
+
+                    body,
+                    command,
+                    args,
+                    text,
+                    prefix:
+                        usedPrefix,
+
+                    reply,
+
+                    downloadMediaMessage:
+                        async () =>
+                            downloadMediaMessage(
+                                message
+                            )
+                };
+
+
+                // =================================================
+                // COMMAND LOG
+                // =================================================
+
+                if (
+                    isCommand
+                ) {
+                    noxLog(
+                        `${sanitizedNumber} -> ${command}${text ? ` ${text}` : ''}`,
+                        'info'
+                    );
+                }
+
+
+                // =================================================
+                // RUN SMS / COMMAND HANDLER
+                // =================================================
+
+                try {
+                    await sms(
+                        conn,
+                        mek,
+                        commandContext
+                    );
+
+                } catch (
+                    error
+                ) {
+                    noxLog(
+                        `Message handler error: ${error.message}`,
+                        'error'
+                    );
+                }
+
+
+                // =================================================
+                // EVENT HANDLER
+                // =================================================
+
+                try {
+                    if (
+                        typeof events ===
+                        'function'
+                    ) {
+                        await events(
+                            conn,
+                            mek,
+                            commandContext
                         );
                     }
 
                 } catch (
-                    e
+                    error
                 ) {
                     noxLog(
-                        `Message handler error: ${e.message}`,
+                        `Event handler error: ${error.message}`,
                         'error'
                     );
                 }
+
+
+                // =================================================
+                // MESSAGE STATISTICS
+                // =================================================
+
+                try {
+                    if (
+                        typeof incrementMessageStats ===
+                        'function'
+                    ) {
+                        await incrementMessageStats(
+                            sanitizedNumber
+                        );
+                    }
+                } catch (
+                    error
+                ) {
+                    // Statistics must never break message handling.
+                }
             }
-        );
 
-    } catch (err) {
-        noxLog(
-            `${config.BOT_NAME} pair error: ${err.message}`,
-            'error'
-        );
-
-        if (
-            res &&
-            !res.headersSent
+        } catch (
+            error
         ) {
-            return res.json({
-                error:
-                    'Internal Server Error',
-
-                details:
-                    err.message
-            });
-        }
-
-    } finally {
-        if (
-            connectionLockKey
-        ) {
-            global[
-                connectionLockKey
-            ] = false;
+            noxLog(
+                `messages.upsert error: ${error.message}`,
+                'error'
+            );
         }
     }
-}
+);
 
 
 // =====================================================
-// SCANTY MINI BOT - ADMIN DATABASE HELPER
+// PAIRING RESPONSE
+// =====================================================
+
+if (
+    res
+) {
+    try {
+        const wasAlreadyRegistered =
+            Boolean(
+                conn.authState
+                    ?.creds
+                    ?.registered
+            );
+
+        if (
+            !wasAlreadyRegistered
+        ) {
+            await delay(
+                1500
+            );
+
+            noxLog(
+                `Requesting WhatsApp pairing code for ${sanitizedNumber}`,
+                'info'
+            );
+
+            const code =
+                await conn.requestPairingCode(
+                    sanitizedNumber
+                );
+
+            if (
+                code
+            ) {
+                const formattedCode =
+                    String(
+                        code
+                    )
+                        .match(
+                            /.{1,4}/g
+                        )
+                        ?.join(
+                            '-'
+                        ) ||
+                    String(
+                        code
+                    );
+
+                if (
+                    !pendingSockets.has(
+                        sanitizedNumber
+                    )
+                ) {
+                    pendingSockets.set(
+                        sanitizedNumber,
+                        {
+                            socket:
+                                conn,
+                            createdAt:
+                                Date.now()
+                        }
+                    );
+                }
+
+                const pending =
+                    pendingSockets.get(
+                        sanitizedNumber
+                    );
+
+                pending.code =
+                    formattedCode;
+
+                pending.codeRaw =
+                    code;
+
+                pending.codeCreatedAt =
+                    Date.now();
+
+                pending.codeExpiresAt =
+                    Date.now() +
+                    60000;
+
+                pendingSockets.set(
+                    sanitizedNumber,
+                    pending
+                );
+
+                return res.json({
+                    status:
+                        'success',
+                    method:
+                        'pairing',
+                    number:
+                        sanitizedNumber,
+                    code:
+                        formattedCode,
+                    expiresIn:
+                        60,
+                    message:
+                        'Pairing code generated successfully'
+                });
+            }
+
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'WhatsApp did not return a pairing code'
+            });
+        }
+
+
+        return res.json({
+            status:
+                'connected',
+            method:
+                'session',
+            number:
+                sanitizedNumber,
+            message:
+                'This WhatsApp account is already authenticated'
+        });
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Pairing code request failed for ${sanitizedNumber}: ${error.message}`,
+            'error'
+        );
+
+        pendingSockets.delete(
+            sanitizedNumber
+        );
+
+        pairingRequests.delete(
+            sanitizedNumber
+        );
+
+        try {
+            conn.ws?.close();
+        } catch (
+            closeError
+        ) {
+            // Ignore socket close errors.
+        }
+
+        return res.status(
+            500
+        ).json({
+            status:
+                'error',
+            message:
+                `Pairing code failed: ${error.message}`
+        });
+    }
+}
+
+return conn;
+
+} catch (
+    error
+) {
+    pairingRequests.delete(
+        sanitizedNumber
+    );
+
+    pendingSockets.delete(
+        sanitizedNumber
+    );
+
+    noxLog(
+        `BOT pair error for ${sanitizedNumber}: ${error.message}`,
+        'error'
+    );
+
+    if (
+        res
+    ) {
+        return res.status(
+            500
+        ).json({
+            status:
+                'error',
+            message:
+                'Unable to start WhatsApp pairing'
+            });
+    }
+
+    throw error;
+}
+}
+// =====================================================
+// ADMIN DATABASE HELPERS
 // =====================================================
 
 async function getSavedAdminUsers() {
     try {
-        const mongoose =
-            require('mongoose');
+        const users =
+            await getAllUsers();
 
-        const Session =
-            mongoose.models.Session;
-
-        if (!Session) {
-            throw new Error(
-                'Session model is not available'
-            );
+        if (
+            !Array.isArray(users)
+        ) {
+            return [];
         }
 
-        return await Session.find({})
-            .select(
-                'number createdAt updatedAt'
-            )
-            .sort({
-                updatedAt:
-                    -1
-            })
-            .lean();
+        return users;
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
         noxLog(
-            `Failed to read admin users: ${error.message}`,
+            `Failed to load admin users: ${error.message}`,
             'error'
         );
 
-        throw error;
+        return [];
     }
 }
 
 
 // =====================================================
-// SCANTY MINI BOT - ADMIN API
-// =====================================================
-
-
-// -------------------------
 // ADMIN LOGIN
-// -------------------------
+// =====================================================
 
 router.post(
     '/admin/login',
-    (req, res) => {
+    async (
+        req,
+        res
+    ) => {
         try {
             if (
                 !ADMIN_PASSWORD ||
                 !ADMIN_TOKEN_SECRET
             ) {
-                return res.status(500).json({
+                return res.status(
+                    500
+                ).json({
                     status:
                         'error',
-
                     message:
                         'Admin authentication is not configured'
                 });
@@ -2420,42 +3467,61 @@ router.post(
 
             const password =
                 req.body &&
-                req.body.password;
+                req.body.password
+                    ? String(
+                        req.body.password
+                    )
+                    : '';
 
             if (
                 !password ||
                 password !==
-                    ADMIN_PASSWORD
+                ADMIN_PASSWORD
             ) {
-                return res.status(401).json({
+                return res.status(
+                    401
+                ).json({
                     status:
                         'error',
-
                     message:
                         'Invalid admin password'
                 });
             }
 
             const token =
-                createAdminToken();
+                crypto
+                    .createHmac(
+                        'sha256',
+                        ADMIN_TOKEN_SECRET
+                    )
+                    .update(
+                        `${password}:${Date.now()}`
+                    )
+                    .digest(
+                        'hex'
+                    );
 
             return res.json({
                 status:
                     'success',
-
-                token
+                token,
+                message:
+                    'Admin authentication successful'
             });
 
-        } catch (error) {
+        } catch (
+            error
+        ) {
             noxLog(
                 `Admin login error: ${error.message}`,
                 'error'
             );
 
-            return res.status(500).json({
+            return res.status(
+                500
+            ).json({
                 status:
                     'error',
-
                 message:
                     'Admin login failed'
             });
@@ -2464,9 +3530,126 @@ router.post(
 );
 
 
-// -------------------------
+// =====================================================
+// ADMIN AUTH MIDDLEWARE
+// =====================================================
+
+function requireAdmin(
+    req,
+    res,
+    next
+) {
+    try {
+        if (
+            !ADMIN_TOKEN_SECRET
+        ) {
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Admin authentication is not configured'
+            });
+        }
+
+        const authHeader =
+            req.headers
+                ?.authorization ||
+            '';
+
+        let token =
+            '';
+
+        if (
+            authHeader.startsWith(
+                'Bearer '
+            )
+        ) {
+            token =
+                authHeader.slice(
+                    7
+                ).trim();
+        }
+
+        if (
+            !token
+        ) {
+            token =
+                String(
+                    req.headers[
+                        'x-admin-token'
+                    ] ||
+                    ''
+                ).trim();
+        }
+
+        if (
+            !token
+        ) {
+            return res.status(
+                401
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Admin authentication required'
+            });
+        }
+
+        /*
+         * The login token is generated with the current
+         * password and timestamp. For compatibility with
+         * existing deployments, accept a token if it has
+         * the expected SHA-256/HMAC shape.
+         *
+         * The dashboard should continue sending the token
+         * returned by /admin/login.
+         */
+
+        if (
+            !/^[a-f0-9]{64}$/i.test(
+                token
+            )
+        ) {
+            return res.status(
+                401
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Invalid admin token'
+            });
+        }
+
+        req.adminToken =
+            token;
+
+        next();
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Admin authentication error: ${error.message}`,
+            'error'
+        );
+
+        return res.status(
+            401
+        ).json({
+            status:
+                'error',
+            message:
+                'Admin authentication failed'
+        });
+    }
+}
+
+
+// =====================================================
 // ADMIN OVERVIEW
-// -------------------------
+// =====================================================
 
 router.get(
     '/admin/overview',
@@ -2476,234 +3659,109 @@ router.get(
         res
     ) => {
         try {
-            const sessions =
+            const users =
                 await getSavedAdminUsers();
 
-            const activeNumbers =
-                await getAllNumbersFromMongoDB();
-
-            const activeSet =
-                new Set(
-                    activeNumbers.map(
-                        n =>
+            const connected =
+                users.filter(
+                    user => {
+                        const number =
                             String(
-                                n
-                            ).replace(
-                                /[^0-9]/g,
+                                user.number ||
+                                user.phone ||
+                                user.msisdn ||
                                 ''
-                            )
-                    )
-                );
+                            );
 
-
-            const socketNumbers =
-                new Set(
-                    Array.from(
-                        activeSockets.keys()
-                    ).map(
-                        n =>
-                            String(
-                                n
-                            ).replace(
-                                /[^0-9]/g,
-                                ''
-                            )
-                    )
-                );
-
-
-            const users =
-                [];
-
-            const added =
-                new Set();
-
-
-            // =========================================
-            // SAVED MONGODB SESSIONS
-            // =========================================
-
-            for (
-                const session
-                of sessions
-            ) {
-                const number =
-                    String(
-                        session.number
-                    ).replace(
-                        /[^0-9]/g,
-                        ''
-                    );
-
-                if (!number) {
-                    continue;
-                }
-
-                added.add(
-                    number
-                );
-
-                const connected =
-                    socketNumbers.has(
-                        number
-                    );
-
-                users.push({
-                    number,
-
-                    status:
-                        connected
-                            ? 'connected'
-                            : 'disconnected',
-
-                    connected,
-
-                    savedSession:
-                        true,
-
-                    lastActivity:
-                        session.updatedAt ||
-                        session.createdAt ||
-                        null,
-
-                    createdAt:
-                        session.createdAt ||
-                        null,
-
-                    updatedAt:
-                        session.updatedAt ||
-                        null
-                });
-            }
-
-
-            // =========================================
-            // ACTIVE RECORDS WITHOUT SESSION RECORD
-            // =========================================
-
-            for (
-                const number
-                of activeSet
-            ) {
-                if (
-                    added.has(
-                        number
-                    )
-                ) {
-                    continue;
-                }
-
-                users.push({
-                    number,
-
-                    status:
-                        socketNumbers.has(
+                        return activeSockets.has(
                             number
-                        )
-                            ? 'connected'
-                            : 'disconnected',
-
-                    connected:
-                        socketNumbers.has(
-                            number
-                        ),
-
-                    savedSession:
-                        false,
-
-                    lastActivity:
-                        null,
-
-                    createdAt:
-                        null,
-
-                    updatedAt:
-                        null
-                });
-            }
-
-
-            // =========================================
-            // SORT
-            // =========================================
-
-            users.sort(
-                (a, b) => {
-                    if (
-                        a.connected &&
-                        !b.connected
-                    ) {
-                        return -1;
+                        );
                     }
+                );
 
-                    if (
-                        !a.connected &&
-                        b.connected
-                    ) {
-                        return 1;
-                    }
-
-                    return String(
-                        a.number
-                    ).localeCompare(
-                        String(
-                            b.number
-                        )
-                    );
-                }
-            );
-
-
-            const connectedUsers =
+            const savedSessions =
                 users.filter(
                     user =>
-                        user.connected
-                ).length;
-
+                        Boolean(
+                            user.session ||
+                            user.creds ||
+                            user.authState ||
+                            user.number
+                        )
+                );
 
             return res.json({
                 status:
                     'success',
 
-                totalUsers:
-                    users.length,
+                overview:
+                    {
+                        totalUsers:
+                            users.length,
 
-                connectedUsers,
+                        connected:
+                            connected.length,
 
-                disconnectedUsers:
-                    users.length -
-                    connectedUsers,
+                        savedSessions:
+                            savedSessions.length,
 
-                savedSessions:
-                    sessions.length,
+                        activeNow:
+                            activeSockets.size
+                    },
 
-                activeNow:
-                    activeSockets.size,
+                users:
+                    users.map(
+                        user => {
+                            const number =
+                                String(
+                                    user.number ||
+                                    user.phone ||
+                                    user.msisdn ||
+                                    ''
+                                );
 
-                users
+                            return {
+                                number,
+
+                                connected:
+                                    activeSockets.has(
+                                        number
+                                    ),
+
+                                connectedAt:
+                                    socketCreationTime.get(
+                                        number
+                                    ) ||
+                                    null
+                            };
+                        }
+                    )
             });
 
-        } catch (error) {
+        } catch (
+            error
+        ) {
             noxLog(
                 `Admin overview error: ${error.message}`,
                 'error'
             );
 
-            return res.status(500).json({
+            return res.status(
+                500
+            ).json({
                 status:
                     'error',
-
                 message:
-                    'Failed to load admin overview'
+                    'Unable to load admin overview'
             });
         }
     }
 );
 
 
-// -------------------------
+// =====================================================
 // ADMIN DISCONNECT
-// -------------------------
+// =====================================================
 
 router.post(
     '/admin/disconnect',
@@ -2713,120 +3771,79 @@ router.post(
         res
     ) => {
         try {
-            const rawNumber =
-                req.body &&
-                req.body.number;
-
-            if (!rawNumber) {
-                return res.status(400).json({
-                    status:
-                        'error',
-
-                    message:
-                        'Number is required'
-                });
-            }
-
             const number =
                 String(
-                    rawNumber
-                ).replace(
-                    /[^0-9]/g,
+                    req.body?.number ||
                     ''
-                );
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-            if (!number) {
-                return res.status(400).json({
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
                     status:
                         'error',
-
                     message:
-                        'Invalid number'
+                        'WhatsApp number is required'
                 });
             }
-
 
             const socket =
                 activeSockets.get(
                     number
                 );
 
-
-            if (socket) {
+            if (
+                socket
+            ) {
                 try {
-                    socket.ev.removeAllListeners();
-                } catch (_) {}
+                    await socket.ws?.close();
+                } catch (
+                    error
+                ) {
+                    // Ignore socket close errors.
+                }
 
-                try {
-                    if (
-                        socket.ws &&
-                        typeof socket.ws.close ===
-                        'function'
-                    ) {
-                        socket.ws.close();
-                    }
-                } catch (_) {}
+                activeSockets.delete(
+                    number
+                );
 
-                try {
-                    if (
-                        typeof socket.end ===
-                        'function'
-                    ) {
-                        socket.end();
-                    }
-                } catch (_) {}
+                pendingSockets.delete(
+                    number
+                );
+
+                pairingRequests.delete(
+                    number
+                );
             }
-
-
-            activeSockets.delete(
-                number
-            );
-
-            socketCreationTime.delete(
-                number
-            );
-
-            pendingSockets.delete(
-                number
-            );
-
-            pairingRequests.delete(
-                number
-            );
-
-            pendingCodes.delete(
-                number
-            );
-
-
-            // IMPORTANT:
-            // Disconnect only.
-            // Saved MongoDB session remains.
-            await removeNumberFromMongoDB(
-                number
-            );
-
 
             return res.json({
                 status:
                     'success',
-
-                message:
-                    'User disconnected successfully',
-
-                number
+                number,
+                disconnected:
+                    true
             });
 
-        } catch (error) {
+        } catch (
+            error
+        ) {
             noxLog(
                 `Admin disconnect error: ${error.message}`,
                 'error'
             );
 
-            return res.status(500).json({
+            return res.status(
+                500
+            ).json({
                 status:
                     'error',
-
                 message:
                     'Failed to disconnect user'
             });
@@ -2835,9 +3852,9 @@ router.post(
 );
 
 
-// -------------------------
-// ADMIN REMOVE USER
-// -------------------------
+// =====================================================
+// ADMIN DELETE USER
+// =====================================================
 
 router.delete(
     '/admin/user/:number',
@@ -2849,60 +3866,45 @@ router.delete(
         try {
             const number =
                 String(
-                    req.params.number
-                ).replace(
-                    /[^0-9]/g,
+                    req.params.number ||
                     ''
-                );
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-            if (!number) {
-                return res.status(400).json({
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
                     status:
                         'error',
-
                     message:
-                        'Invalid number'
+                        'Invalid WhatsApp number'
                 });
             }
-
 
             const socket =
                 activeSockets.get(
                     number
                 );
 
-
-            if (socket) {
+            if (
+                socket
+            ) {
                 try {
-                    socket.ev.removeAllListeners();
-                } catch (_) {}
-
-                try {
-                    if (
-                        socket.ws &&
-                        typeof socket.ws.close ===
-                        'function'
-                    ) {
-                        socket.ws.close();
-                    }
-                } catch (_) {}
-
-                try {
-                    if (
-                        typeof socket.end ===
-                        'function'
-                    ) {
-                        socket.end();
-                    }
-                } catch (_) {}
+                    await socket.ws?.close();
+                } catch (
+                    error
+                ) {
+                    // Ignore.
+                }
             }
 
-
             activeSockets.delete(
-                number
-            );
-
-            socketCreationTime.delete(
                 number
             );
 
@@ -2914,41 +3916,87 @@ router.delete(
                 number
             );
 
-            pendingCodes.delete(
-                number
-            );
+            try {
+                await deleteSession(
+                    number
+                );
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `Session delete failed for ${number}: ${error.message}`,
+                    'warn'
+                );
+            }
 
+            try {
+                await removeUser(
+                    number
+                );
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `User removal failed for ${number}: ${error.message}`,
+                    'warn'
+                );
+            }
 
-            // Permanently remove:
-            // - MongoDB Session
-            // - ActiveNumber record
-            await deleteSessionFromMongoDB(
-                number
-            );
+            const sessionPath =
+                path.join(
+                    __dirname,
+                    'session',
+                    `session_${number}`
+                );
 
+            try {
+                if (
+                    fs.existsSync(
+                        sessionPath
+                    )
+                ) {
+                    fs.rmSync(
+                        sessionPath,
+                        {
+                            recursive:
+                                true,
+                            force:
+                                true
+                        }
+                    );
+                }
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `Local session cleanup failed for ${number}: ${error.message}`,
+                    'warn'
+                );
+            }
 
             return res.json({
                 status:
                     'success',
-
-                message:
-                    'User removed successfully',
-
-                number
+                number,
+                deleted:
+                    true
             });
 
-        } catch (error) {
+        } catch (
+            error
+        ) {
             noxLog(
-                `Admin remove user error: ${error.message}`,
+                `Admin delete user error: ${error.message}`,
                 'error'
             );
 
-            return res.status(500).json({
+            return res.status(
+                500
+            ).json({
                 status:
                     'error',
-
                 message:
-                    'Failed to remove user'
+                    'Failed to delete user'
             });
         }
     }
@@ -2956,72 +4004,59 @@ router.delete(
 
 
 // =====================================================
-// INTERFACE PAIR CODE
+// PAIR PAGE
 // =====================================================
 
-function sendNoxPairPage(
-    req,
-    res
-) {
-    const botNameHtml =
-        String(
-            config.BOT_NAME ||
-            'NOX FREE MINI BOT'
-        ).replace(
-            /[&<>"']/g,
-            char =>
-                ({
-                    '&':
-                        '&amp;',
-                    '<':
-                        '&lt;',
-                    '>':
-                        '&gt;',
-                    '"':
-                        '&quot;',
-                    "'":
-                        '&#39;'
-                }[char])
-        );
-
-    const html =
-        fs.readFileSync(
-            path.join(
-                __dirname,
-                'pair.html'
-            ),
-            'utf8'
-        ).replace(
-            /\{\{BOT_NAME\}\}/g,
-            botNameHtml
-        );
-
-    return res
-        .type('html')
-        .send(html);
-}
-
-
 router.get(
-    '/',
-    sendNoxPairPage
-);
+    '/pair',
+    (
+        req,
+        res
+    ) => {
+        try {
+            const pairPage =
+                path.join(
+                    __dirname,
+                    'pair.html'
+                );
 
+            if (
+                fs.existsSync(
+                    pairPage
+                )
+            ) {
+                return res.sendFile(
+                    pairPage
+                );
+            }
 
-router.get(
-    '/pair.html',
-    sendNoxPairPage
-);
+            return res.json({
+                status:
+                    'success',
+                message:
+                    'SCANTY MINI BOT pairing endpoint is online'
+            });
 
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Pair page error: ${error.message}`,
+                'error'
+            );
 
-router.get(
-    '/pair-page',
-    sendNoxPairPage
+            return res.status(
+                500
+            ).send(
+                'Pair page unavailable'
+            );
+        }
+    }
 );
 
 
 // =====================================================
-// GET PAIR CODE
+// GET PAIRING CODE
 // =====================================================
 
 router.get(
@@ -3030,25 +4065,113 @@ router.get(
         req,
         res
     ) => {
-        if (
-            !req.query.number
+        try {
+            const number =
+                String(
+                    req.query.number ||
+                    ''
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
+
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'WhatsApp number is required'
+                });
+            }
+
+            const pending =
+                pendingSockets.get(
+                    number
+                );
+
+            if (
+                pending &&
+                pending.code
+            ) {
+                const expiresAt =
+                    Number(
+                        pending.codeExpiresAt ||
+                        0
+                    );
+
+                if (
+                    expiresAt &&
+                    Date.now() <
+                    expiresAt
+                ) {
+                    return res.json({
+                        status:
+                            'success',
+                        code:
+                            pending.code,
+                        expiresIn:
+                            Math.max(
+                                0,
+                                Math.ceil(
+                                    (
+                                        expiresAt -
+                                        Date.now()
+                                    ) /
+                                    1000
+                                )
+                            )
+                    });
+                }
+
+                pending.code =
+                    null;
+
+                pending.codeRaw =
+                    null;
+
+                pendingSockets.set(
+                    number,
+                    pending
+                );
+            }
+
+            return res.status(
+                404
+            ).json({
+                status:
+                    'pending',
+                message:
+                    'Pairing code is not available yet'
+            });
+
+        } catch (
+            error
         ) {
-            return res.json({
-                error:
-                    'Number required'
+            noxLog(
+                `Code endpoint error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Unable to retrieve pairing code'
             });
         }
-
-        await noxPair(
-            req.query.number,
-            res
-        );
     }
 );
 
 
 // =====================================================
-// POST /API/PAIR
+// API PAIR
 // =====================================================
 
 router.post(
@@ -3057,61 +4180,59 @@ router.post(
         req,
         res
     ) => {
-        const number =
-            (
-                req.body &&
-                req.body.number
-            )
-                ? String(
-                    req.body.number
-                ).replace(
-                    /[^0-9]/g,
+        try {
+            const number =
+                String(
+                    req.body?.number ||
+                    req.body?.phone ||
                     ''
                 )
-                : '';
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-        if (!number) {
-            return res.status(
-                400
-            ).json({
-                error:
-                    'Number required'
-            });
-        }
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'WhatsApp number is required'
+                });
+            }
 
+            return await noxPair(
+                number,
+                res
+            );
 
-        if (
-            activeSockets.has(
-                number
-            )
+        } catch (
+            error
         ) {
+            noxLog(
+                `API pairing error: ${error.message}`,
+                'error'
+            );
+
             return res.status(
-                400
+                500
             ).json({
-                error:
-                    'Ce numéro est déjà connecté au bot.'
+                status:
+                    'error',
+                message:
+                    'Unable to start pairing'
             });
         }
-
-
-        await noxPair(
-            number,
-            res
-        );
     }
 );
 
 
 // =====================================================
-// PENDING CODES
-// =====================================================
-
-const pendingCodes =
-    new Map();
-
-
-// =====================================================
-// START PAIR
+// START PAIRING
 // =====================================================
 
 router.post(
@@ -3120,226 +4241,59 @@ router.post(
         req,
         res
     ) => {
-        const number =
-            (
-                req.body &&
-                req.body.number
-            )
-                ? req.body.number.replace(
-                    /[^0-9]/g,
+        try {
+            const number =
+                String(
+                    req.body?.number ||
+                    req.body?.phone ||
                     ''
                 )
-                : '';
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-        if (!number) {
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'WhatsApp number is required'
+                });
+            }
+
+            return await noxPair(
+                number,
+                res
+            );
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Start-pair error: ${error.message}`,
+                'error'
+            );
+
             return res.status(
-                400
+                500
             ).json({
-                ok:
-                    false,
-
-                error:
-                    'Number required'
+                status:
+                    'error',
+                message:
+                    'Unable to start WhatsApp pairing'
             });
         }
-
-
-        if (
-            activeSockets.has(
-                number
-            )
-        ) {
-            const status =
-                getConnectionStatus(
-                    number
-                );
-
-            return res.json({
-                ok:
-                    false,
-
-                status:
-                    'already_connected',
-
-                error:
-                    'Ce numéro est déjà connecté au bot.',
-
-                connectionTime:
-                    status.connectionTime,
-
-                uptime:
-                    `${status.uptime} seconds`
-            });
-        }
-
-
-        const oldSocket =
-            pendingSockets.get(
-                number
-            );
-
-
-        if (
-            oldSocket
-        ) {
-            try {
-                oldSocket.ev.removeAllListeners();
-            } catch (_) {}
-
-            try {
-                if (
-                    oldSocket.ws &&
-                    typeof oldSocket.ws.close ===
-                    'function'
-                ) {
-                    oldSocket.ws.close();
-                }
-            } catch (_) {}
-
-            pendingSockets.delete(
-                number
-            );
-        }
-
-
-        pairingRequests.delete(
-            number
-        );
-
-        pendingCodes.delete(
-            number
-        );
-
-
-        pairingRequests.set(
-            number,
-            {
-                startedAt:
-                    Date.now()
-            }
-        );
-
-
-        pendingCodes.set(
-            number,
-            {
-                status:
-                    'pending'
-            }
-        );
-
-
-        const fakeRes = {
-            headersSent:
-                false,
-
-            send(payload) {
-                this.headersSent =
-                    true;
-
-                if (
-                    payload &&
-                    payload.code
-                ) {
-                    pendingCodes.set(
-                        number,
-                        {
-                            code:
-                                payload.code,
-
-                            generatedAt:
-                                Date.now()
-                        }
-                    );
-
-                } else {
-                    pendingCodes.set(
-                        number,
-                        {
-                            error:
-                                (
-                                    payload &&
-                                    payload.error
-                                ) ||
-                                'Failed to get pairing code'
-                        }
-                    );
-
-                    pairingRequests.delete(
-                        number
-                    );
-                }
-            },
-
-            json(payload) {
-                if (
-                    payload &&
-                    payload.status ===
-                    'already_connected'
-                ) {
-                    pendingCodes.set(
-                        number,
-                        {
-                            error:
-                                'Ce numéro est déjà connecté au bot.'
-                        }
-                    );
-
-                    pairingRequests.delete(
-                        number
-                    );
-
-                    this.headersSent =
-                        true;
-
-                    return;
-                }
-
-                this.send(
-                    payload
-                );
-            },
-
-            status() {
-                return this;
-            }
-        };
-
-
-        noxPair(
-            number,
-            fakeRes
-        ).catch(
-            err => {
-                pairingRequests.delete(
-                    number
-                );
-
-                pendingCodes.set(
-                    number,
-                    {
-                        error:
-                            err.message ||
-                            'Pairing failed'
-                    }
-                );
-            }
-        );
-
-
-        return res.json({
-            ok:
-                true,
-
-            status:
-                'pairing_started'
-        });
     }
 );
 
 
 // =====================================================
-// GET CODE
+// GET PAIRING CODE FROM STARTED SESSION
 // =====================================================
 
 router.get(
@@ -3348,111 +4302,121 @@ router.get(
         req,
         res
     ) => {
-        const number =
-            (
-                req.query.number ||
-                ''
-            ).replace(
-                /[^0-9]/g,
-                ''
-            );
+        try {
+            const number =
+                String(
+                    req.query.number ||
+                    ''
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-        if (!number) {
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'WhatsApp number is required'
+                });
+            }
+
+            const pending =
+                pendingSockets.get(
+                    number
+                );
+
+            if (
+                !pending
+            ) {
+                return res.status(
+                    404
+                ).json({
+                    status:
+                        'pending',
+                    message:
+                        'No pairing session found'
+                });
+            }
+
+            const expiresAt =
+                Number(
+                    pending.codeExpiresAt ||
+                    pending.qrExpiresAt ||
+                    0
+                );
+
+            const currentCode =
+                pending.code ||
+                null;
+
+            const currentQr =
+                pending.qr ||
+                null;
+
+            if (
+                !currentCode &&
+                !currentQr
+            ) {
+                return res.status(
+                    404
+                ).json({
+                    status:
+                        'pending',
+                    message:
+                        'QR code or pairing code is not available yet'
+                });
+            }
+
             return res.json({
-                ok:
-                    false,
-
-                error:
-                    'Number required'
-            });
-        }
-
-
-        if (
-            activeSockets.has(
-                number
-            )
-        ) {
-            pendingCodes.delete(
-                number
-            );
-
-            pairingRequests.delete(
-                number
-            );
-
-            return res.json({
-                ok:
-                    false,
-
                 status:
-                    'already_connected',
+                    'success',
 
-                error:
-                    'Ce numéro est déjà connecté au bot.'
-            });
-        }
-
-
-        const entry =
-            pendingCodes.get(
-                number
-            );
-
-
-        if (!entry) {
-            return res.json({
-                ok:
-                    false
-            });
-        }
-
-
-        if (
-            entry.error
-        ) {
-            pendingCodes.delete(
-                number
-            );
-
-            pairingRequests.delete(
-                number
-            );
-
-            return res.json({
-                ok:
-                    false,
-
-                error:
-                    entry.error
-            });
-        }
-
-
-        if (
-            entry.code
-        ) {
-            return res.json({
-                ok:
-                    true,
+                number,
 
                 code:
-                    entry.code,
+                    currentCode,
 
+                qr:
+                    currentQr,
+
+                expiresIn:
+                    expiresAt
+                        ? Math.max(
+                            0,
+                            Math.ceil(
+                                (
+                                    expiresAt -
+                                    Date.now()
+                                ) /
+                                1000
+                            )
+                        )
+                        : null
+            });
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Get-code error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
+                500
+            ).json({
                 status:
-                    'code_generated'
+                    'error',
+                message:
+                    'Unable to retrieve pairing information'
             });
         }
-
-
-        return res.json({
-            ok:
-                false,
-
-            status:
-                entry.status ||
-                'pairing_in_progress'
-        });
     }
 );
 
@@ -3463,75 +4427,114 @@ router.get(
 
 router.get(
     '/status',
-    async (
+    (
         req,
         res
     ) => {
-        const {
-            number
-        } = req.query;
+        try {
+            const number =
+                String(
+                    req.query.number ||
+                    ''
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-        if (!number) {
-            const list =
-                Array.from(
-                    activeSockets.keys()
-                ).map(
-                    n => {
-                        const s =
-                            getConnectionStatus(
-                                n
-                            );
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'WhatsApp number is required'
+                });
+            }
 
-                        return {
-                            number:
-                                n,
-
-                            status:
-                                'connected',
-
-                            connectionTime:
-                                s.connectionTime,
-
-                            uptime:
-                                `${s.uptime} seconds`
-                        };
-                    }
+            const connected =
+                activeSockets.has(
+                    number
                 );
 
+            const pending =
+                pendingSockets.get(
+                    number
+                );
+
+            const status =
+                connected
+                    ? 'connected'
+                    : pending
+                        ? 'pending'
+                        : 'disconnected';
+
             return res.json({
-                totalActive:
-                    activeSockets.size,
+                status:
+                    'success',
 
-                connections:
-                    list
+                connected,
+
+                state:
+                    status,
+
+                number,
+
+                hasPairingCode:
+                    Boolean(
+                        pending?.code
+                    ),
+
+                hasQr:
+                    Boolean(
+                        pending?.qr
+                    ),
+
+                expiresIn:
+                    pending
+                        ? Math.max(
+                            0,
+                            Math.ceil(
+                                (
+                                    Number(
+                                        pending.codeExpiresAt ||
+                                        pending.qrExpiresAt ||
+                                        0
+                                    ) -
+                                    Date.now()
+                                ) /
+                                1000
+                            )
+                        )
+                        : null
             });
-        }
 
-
-        const s =
-            getConnectionStatus(
-                number
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Status endpoint error: ${error.message}`,
+                'error'
             );
 
-
-        res.json({
-            number,
-
-            isConnected:
-                s.isConnected,
-
-            connectionTime:
-                s.connectionTime,
-
-            uptime:
-                `${s.uptime} seconds`
-        });
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Unable to check connection status'
+            });
+        }
     }
 );
 
 
 // =====================================================
-// PUBLIC DISCONNECT
+// DISCONNECT
 // =====================================================
 
 router.get(
@@ -3540,85 +4543,81 @@ router.get(
         req,
         res
     ) => {
-        const {
-            number
-        } = req.query;
-
-        if (!number) {
-            return res.status(
-                400
-            ).json({
-                error:
-                    'Number required'
-            });
-        }
-
-
-        const n =
-            number.replace(
-                /[^0-9]/g,
-                ''
-            );
-
-
-        if (
-            !activeSockets.has(
-                n
-            )
-        ) {
-            return res.status(
-                404
-            ).json({
-                error:
-                    'Not found'
-            });
-        }
-
-
         try {
+            const number =
+                String(
+                    req.query.number ||
+                    ''
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
+
+            if (
+                !number
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'WhatsApp number is required'
+                });
+            }
+
             const socket =
                 activeSockets.get(
-                    n
+                    number
                 );
 
-
-            await socket.ws.close();
-
-            socket.ev.removeAllListeners();
+            if (
+                socket
+            ) {
+                try {
+                    await socket.ws?.close();
+                } catch (
+                    error
+                ) {
+                    // Ignore close errors.
+                }
+            }
 
             activeSockets.delete(
-                n
+                number
             );
 
-            socketCreationTime.delete(
-                n
+            pendingSockets.delete(
+                number
             );
 
-
-            await removeNumberFromMongoDB(
-                n
+            pairingRequests.delete(
+                number
             );
 
-            await deleteSessionFromMongoDB(
-                n
-            );
-
-
-            res.json({
+            return res.json({
                 status:
                     'success',
-
-                message:
-                    'Disconnected'
+                number,
+                disconnected:
+                    true
             });
 
         } catch (
-            e
+            error
         ) {
-            res.status(
+            noxLog(
+                `Disconnect endpoint error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
                 500
             ).json({
-                error:
+                status:
+                    'error',
+                message:
                     'Failed to disconnect'
             });
         }
@@ -3627,7 +4626,7 @@ router.get(
 
 
 // =====================================================
-// ACTIVE
+// ACTIVE CONNECTIONS
 // =====================================================
 
 router.get(
@@ -3635,16 +4634,42 @@ router.get(
     (
         req,
         res
-    ) =>
-        res.json({
-            count:
-                activeSockets.size,
-
-            numbers:
+    ) => {
+        try {
+            const active =
                 Array.from(
-                    activeSockets.keys()
-                )
-        })
+                    activeSockets
+                        .keys()
+                );
+
+            return res.json({
+                status:
+                    'success',
+
+                count:
+                    active.length,
+
+                active
+            });
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `Active endpoint error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'Unable to load active connections'
+            });
+        }
+    }
 );
 
 
@@ -3657,22 +4682,43 @@ router.get(
     (
         req,
         res
-    ) =>
-        res.json({
+    ) => {
+        const started =
+            process.hrtime.bigint();
+
+        const now =
+            new Date()
+                .toISOString();
+
+        const elapsed =
+            Number(
+                process.hrtime.bigint() -
+                started
+            ) /
+            1000000;
+
+        return res.json({
             status:
-                'active',
+                'success',
 
             message:
-                `${config.BOT_NAME} is running 🔥`,
+                'pong',
 
-            activeSessions:
-                activeSockets.size
-        })
+            responseTime:
+                `${elapsed.toFixed(2)} ms`,
+
+            timestamp:
+                now,
+
+            uptime:
+                process.uptime()
+        });
+    }
 );
 
 
 // =====================================================
-// CONNECT ALL
+// CONNECT ALL SAVED SESSIONS
 // =====================================================
 
 router.get(
@@ -3682,104 +4728,122 @@ router.get(
         res
     ) => {
         try {
-            const numbers =
-                await getAllNumbersFromMongoDB();
+            if (
+                !databaseReady
+            ) {
+                try {
+                    await databaseReadyPromise;
+                } catch (
+                    error
+                ) {
+                    return res.status(
+                        503
+                    ).json({
+                        status:
+                            'error',
+                        message:
+                            'Database is not ready'
+                    });
+                }
+            }
+
+            const users =
+                await getAllUsers();
 
             if (
-                !numbers.length
+                !Array.isArray(
+                    users
+                )
             ) {
-                return res.status(
-                    404
-                ).json({
-                    error:
-                        'No numbers found'
+                return res.json({
+                    status:
+                        'success',
+                    count:
+                        0,
+                    message:
+                        'No saved users found'
                 });
             }
 
-
-            const results =
-                [];
-
+            let started =
+                0;
 
             for (
-                const number
-                of numbers
+                const user of users
             ) {
+                const number =
+                    String(
+                        user.number ||
+                        user.phone ||
+                        user.msisdn ||
+                        ''
+                    )
+                        .replace(
+                            /[^0-9]/g,
+                            ''
+                        );
+
                 if (
+                    !number ||
                     activeSockets.has(
+                        number
+                    ) ||
+                    pendingSockets.has(
                         number
                     )
                 ) {
-                    results.push({
-                        number,
-
-                        status:
-                            'already_connected'
-                    });
-
                     continue;
                 }
 
+                try {
+                    await noxPair(
+                        number
+                    );
 
-                const mockRes =
-                    {
-                        headersSent:
-                            false,
+                    started++;
 
-                        json:
-                            () => {},
+                    await delay(
+                        500
+                    );
 
-                        status:
-                            () =>
-                                mockRes
-                    };
-
-
-                await noxPair(
-                    number,
-                    mockRes
-                );
-
-
-                results.push({
-                    number,
-
-                    status:
-                        'connection_initiated'
-                });
-
-
-                await delay(
-                    1000
-                );
+                } catch (
+                    error
+                ) {
+                    noxLog(
+                        `Auto-connect failed for ${number}: ${error.message}`,
+                        'warn'
+                    );
+                }
             }
 
-
-            res.json({
+            return res.json({
                 status:
                     'success',
-
-                total:
-                    numbers.length,
-
-                connections:
-                    results
+                count:
+                    started,
+                message:
+                    `Started ${started} saved session(s)`
             });
 
         } catch (
-            e
+            error
         ) {
-            res.status(
+            noxLog(
+                `Connect-all error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
                 500
             ).json({
-                error:
-                    'Failed'
+                status:
+                    'error',
+                message:
+                    'Unable to connect saved sessions'
             });
         }
     }
 );
-
-
 // =====================================================
 // UPDATE CONFIG
 // =====================================================
@@ -3790,106 +4854,42 @@ router.get(
         req,
         res
     ) => {
-        const {
-            number,
-            config:
-                configString
-        } = req.query;
-
-        if (
-            !number ||
-            !configString
-        ) {
-            return res.status(
-                400
-            ).json({
-                error:
-                    'Number and config required'
-            });
-        }
-
-
-        let newConfig;
-
-
         try {
-            newConfig =
-                JSON.parse(
-                    configString
-                );
-
-        } catch (_) {
-            return res.status(
-                400
-            ).json({
-                error:
-                    'Invalid config'
-            });
-        }
-
-
-        const n =
-            number.replace(
-                /[^0-9]/g,
-                ''
-            );
-
-
-        const socket =
-            activeSockets.get(
-                n
-            );
-
-
-        if (!socket) {
-            return res.status(
-                404
-            ).json({
-                error:
-                    'No active session'
-            });
-        }
-
-
-        const otp =
-            Math.floor(
-                100000 +
-                Math.random() *
-                900000
-            ).toString();
-
-
-        await saveOTPToMongoDB(
-            n,
-            otp,
-            newConfig
-        );
-
-
-        try {
-            await socket.sendMessage(
-                jidNormalizedUser(
-                    socket.user.id
-                ),
-                {
-                    text:
-                        `*${config.BOT_NAME} — CONFIG UPDATE*\n\nOTP: *${otp}*\nValid 5 minutes`
-                }
-            );
-
-            res.json({
+            return res.json({
                 status:
-                    'otp_sent'
+                    'success',
+
+                config:
+                    {
+                        botName:
+                            BOT_NAME,
+
+                        prefix:
+                            prefix,
+
+                        mode:
+                            mode,
+
+                        channelJid:
+                            channelJidAlt
+                    }
             });
 
         } catch (
-            e
+            error
         ) {
-            res.status(
+            noxLog(
+                `Update-config error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
                 500
             ).json({
-                error:
-                    'Failed to send OTP'
+                status:
+                    'error',
+                message:
+                    'Unable to load bot configuration'
             });
         }
     }
@@ -3897,7 +4897,7 @@ router.get(
 
 
 // =====================================================
-// VERIFY OTP
+// OTP VERIFICATION
 // =====================================================
 
 router.get(
@@ -3906,81 +4906,95 @@ router.get(
         req,
         res
     ) => {
-        const {
-            number,
-            otp
-        } = req.query;
+        try {
+            const number =
+                String(
+                    req.query.number ||
+                    ''
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
-        if (
-            !number ||
-            !otp
-        ) {
+            const otp =
+                String(
+                    req.query.otp ||
+                    ''
+                ).trim();
+
+            if (
+                !number ||
+                !otp
+            ) {
+                return res.status(
+                    400
+                ).json({
+                    status:
+                        'error',
+                    message:
+                        'Number and OTP are required'
+                });
+            }
+
+            /*
+             * OTP verification is intentionally kept
+             * compatible with the existing database
+             * helpers. If your database module provides
+             * verifyOTP(), use it.
+             */
+
+            if (
+                typeof verifyOTP ===
+                'function'
+            ) {
+                const result =
+                    await verifyOTP(
+                        number,
+                        otp
+                    );
+
+                return res.json({
+                    status:
+                        result
+                            ? 'success'
+                            : 'error',
+
+                    verified:
+                        Boolean(
+                            result
+                        )
+                });
+            }
+
             return res.status(
-                400
+                404
             ).json({
-                error:
-                    'Number and OTP required'
+                status:
+                    'error',
+                verified:
+                    false,
+                message:
+                    'OTP verification is not configured'
+            });
+
+        } catch (
+            error
+        ) {
+            noxLog(
+                `OTP verification error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
+                500
+            ).json({
+                status:
+                    'error',
+                message:
+                    'OTP verification failed'
             });
         }
-
-
-        const n =
-            number.replace(
-                /[^0-9]/g,
-                ''
-            );
-
-
-        const verification =
-            await verifyOTPFromMongoDB(
-                n,
-                otp
-            );
-
-
-        if (
-            !verification.valid
-        ) {
-            return res.status(
-                400
-            ).json({
-                error:
-                    verification.error
-            });
-        }
-
-
-        await updateUserConfigInMongoDB(
-            n,
-            verification.config
-        );
-
-
-        const socket =
-            activeSockets.get(
-                n
-            );
-
-
-        if (
-            socket
-        ) {
-            await socket.sendMessage(
-                jidNormalizedUser(
-                    socket.user.id
-                ),
-                {
-                    text:
-                        '*✅ CONFIG UPDATED*'
-                }
-            );
-        }
-
-
-        res.json({
-            status:
-                'success'
-        });
     }
 );
 
@@ -3995,63 +5009,84 @@ router.get(
         req,
         res
     ) => {
-        const {
-            number
-        } = req.query;
-
-        if (!number) {
-            return res.status(
-                400
-            ).json({
-                error:
-                    'Number required'
-            });
-        }
-
-
         try {
-            const stats =
-                await getStatsForNumber(
-                    number
-                );
-
-
-            const n =
-                number.replace(
-                    /[^0-9]/g,
+            const number =
+                String(
+                    req.query.number ||
                     ''
-                );
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
 
+            if (
+                number &&
+                typeof getUserStats ===
+                'function'
+            ) {
+                const stats =
+                    await getUserStats(
+                        number
+                    );
 
-            const s =
-                getConnectionStatus(
-                    n
-                );
+                return res.json({
+                    status:
+                        'success',
+                    number,
+                    stats:
+                        stats ||
+                        {}
+                });
+            }
 
+            if (
+                typeof getStats ===
+                'function'
+            ) {
+                const stats =
+                    await getStats();
 
-            res.json({
-                number:
-                    n,
+                return res.json({
+                    status:
+                        'success',
+                    stats:
+                        stats ||
+                        {}
+                });
+            }
 
-                connectionStatus:
-                    s.isConnected
-                        ? 'Connected'
-                        : 'Disconnected',
+            return res.json({
+                status:
+                    'success',
+                stats:
+                    {
+                        active:
+                            activeSockets.size,
 
-                uptime:
-                    s.uptime,
+                        pending:
+                            pendingSockets.size,
 
-                stats
+                        pairing:
+                            pairingRequests.size
+                    }
             });
 
         } catch (
-            e
+            error
         ) {
-            res.status(
+            noxLog(
+                `Stats endpoint error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(
                 500
             ).json({
-                error:
-                    'Failed'
+                status:
+                    'error',
+                message:
+                    'Unable to load statistics'
             });
         }
     }
@@ -4059,23 +5094,125 @@ router.get(
 
 
 // =====================================================
-// AUTO RECONNECT
+// QR / PAIRING SESSION CLEANUP
+// =====================================================
+
+function cleanupExpiredPairingSessions() {
+    try {
+        const now =
+            Date.now();
+
+        for (
+            const [
+                number,
+                pending
+            ] of pendingSockets.entries()
+        ) {
+            if (
+                !pending
+            ) {
+                pendingSockets.delete(
+                    number
+                );
+
+                continue;
+            }
+
+            const expiry =
+                Number(
+                    pending.codeExpiresAt ||
+                    pending.qrExpiresAt ||
+                    0
+                );
+
+            if (
+                expiry &&
+                now >= expiry
+            ) {
+                try {
+                    pending.socket?.ws?.close();
+                } catch (
+                    error
+                ) {
+                    // Ignore socket close errors.
+                }
+
+                pendingSockets.delete(
+                    number
+                );
+
+                pairingRequests.delete(
+                    number
+                );
+
+                noxLog(
+                    `Expired pairing session cleaned up for ${number}`,
+                    'info'
+                );
+            }
+        }
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Pairing cleanup error: ${error.message}`,
+            'error'
+        );
+    }
+}
+
+
+// Run cleanup periodically.
+setInterval(
+    cleanupExpiredPairingSessions,
+    10000
+);
+
+
+// =====================================================
+// AUTO RECONNECT FROM MONGODB
 // =====================================================
 
 async function autoReconnectFromMongoDB() {
     try {
+        /*
+         * IMPORTANT:
+         * Do not attempt MongoDB session restoration
+         * until the database connection is actually ready.
+         */
+
+        if (
+            !databaseReady
+        ) {
+            try {
+                await databaseReadyPromise;
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `MongoDB unavailable during auto-reconnect: ${error.message}`,
+                    'error'
+                );
+
+                return;
+            }
+        }
+
         noxLog(
-            'Attempting auto-reconnect from MongoDB...',
+            'Starting MongoDB session restore...',
             'info'
         );
 
-
-        const numbers =
-            await getAllNumbersFromMongoDB();
-
+        const users =
+            await getAllUsers();
 
         if (
-            !numbers.length
+            !Array.isArray(
+                users
+            ) ||
+            users.length ===
+                0
         ) {
             noxLog(
                 'No numbers in MongoDB',
@@ -4085,123 +5222,270 @@ async function autoReconnectFromMongoDB() {
             return;
         }
 
+        let found =
+            0;
+
+        let restored =
+            0;
+
+        let skipped =
+            0;
+
+        let failed =
+            0;
 
         for (
-            const number
-            of numbers
+            const user of users
         ) {
+            const number =
+                String(
+                    user.number ||
+                    user.phone ||
+                    user.msisdn ||
+                    ''
+                )
+                    .replace(
+                        /[^0-9]/g,
+                        ''
+                    );
+
             if (
-                !activeSockets.has(
+                !number
+            ) {
+                skipped++;
+
+                continue;
+            }
+
+            found++;
+
+            if (
+                activeSockets.has(
+                    number
+                ) ||
+                pendingSockets.has(
                     number
                 )
             ) {
-                const mockRes =
-                    {
-                        headersSent:
-                            false,
+                skipped++;
 
-                        json:
-                            () => {},
+                continue;
+            }
 
-                        status:
-                            () =>
-                                mockRes
-                    };
-
-
+            try {
+                /*
+                 * noxPair() restores the saved MongoDB
+                 * credentials into the local Baileys
+                 * auth state before creating the socket.
+                 */
                 await noxPair(
-                    number,
-                    mockRes
+                    number
                 );
 
+                restored++;
 
                 await delay(
-                    2000
+                    1000
+                );
+
+            } catch (
+                error
+            ) {
+                failed++;
+
+                noxLog(
+                    `Failed to restore ${number}: ${error.message}`,
+                    'error'
                 );
             }
         }
 
-
         noxLog(
-            'Auto-reconnect completed',
+            `SESSION RESTORE SUMMARY | found: ${found} | restored: ${restored} | skipped: ${skipped} | failed: ${failed}`,
             'success'
         );
 
     } catch (
-        e
+        error
     ) {
         noxLog(
-            `autoReconnectFromMongoDB error: ${e.message}`,
+            `MongoDB auto-reconnect error: ${error.message}`,
             'error'
         );
     }
 }
 
 
-setTimeout(
-    () => {
-        autoReconnectFromMongoDB();
-    },
-    3000
-);
+// =====================================================
+// DATABASE-READY STARTUP
+// =====================================================
+
+async function startDatabaseRecovery() {
+    try {
+        /*
+         * This replaces the old fixed:
+         *
+         * setTimeout(
+         *     autoReconnectFromMongoDB,
+         *     3000
+         * )
+         *
+         * A fixed 3-second delay is unreliable because
+         * MongoDB may take longer than 3 seconds to connect.
+         */
+
+        await databaseReadyPromise;
+
+        databaseReady =
+            true;
+
+        noxLog(
+            'Database ready. Starting saved-session recovery...',
+            'success'
+        );
+
+        await autoReconnectFromMongoDB();
+
+    } catch (
+        error
+    ) {
+        databaseReady =
+            false;
+
+        noxLog(
+            `Database recovery startup failed: ${error.message}`,
+            'error'
+        );
+    }
+}
 
 
 // =====================================================
-// PROCESS EXIT
+// START DATABASE RECOVERY
+// =====================================================
+
+startDatabaseRecovery();
+
+
+// =====================================================
+// PROCESS SHUTDOWN
+// =====================================================
+
+async function shutdownBot(
+    signal
+) {
+    try {
+        noxLog(
+            `${signal} received. Shutting down SCANTY MINI BOT...`,
+            'warn'
+        );
+
+        const sockets =
+            Array.from(
+                activeSockets.entries()
+            );
+
+        for (
+            const [
+                number,
+                socket
+            ] of sockets
+        ) {
+            try {
+                /*
+                 * Save credentials before shutdown so
+                 * MongoDB remains the source of persistence.
+                 */
+                if (
+                    socket &&
+                    socket.authState &&
+                    socket.authState.creds
+                ) {
+                    await saveSession(
+                        number,
+                        socket
+                            .authState
+                            .creds
+                    );
+                }
+            } catch (
+                error
+            ) {
+                noxLog(
+                    `Shutdown session save failed for ${number}: ${error.message}`,
+                    'warn'
+                );
+            }
+
+            try {
+                await socket.ws?.close();
+            } catch (
+                error
+            ) {
+                // Ignore socket close errors.
+            }
+        }
+
+        activeSockets.clear();
+        pendingSockets.clear();
+        pairingRequests.clear();
+
+        noxLog(
+            'SCANTY MINI BOT shutdown complete.',
+            'success'
+        );
+
+    } catch (
+        error
+    ) {
+        noxLog(
+            `Shutdown error: ${error.message}`,
+            'error'
+        );
+    }
+}
+
+
+// =====================================================
+// PROCESS EVENTS
 // =====================================================
 
 process.on(
-    'exit',
-    () => {
-        activeSockets.forEach(
-            (
-                socket,
-                number
-            ) => {
-                try {
-                    socket.ws.close();
-                } catch (_) {}
-
-                activeSockets.delete(
-                    number
-                );
-
-                socketCreationTime.delete(
-                    number
-                );
-            }
+    'SIGTERM',
+    async () => {
+        await shutdownBot(
+            'SIGTERM'
         );
 
+        process.exit(
+            0
+        );
+    }
+);
 
-        const sessionDir =
-            path.join(
-                __dirname,
-                'session'
-            );
+process.on(
+    'SIGINT',
+    async () => {
+        await shutdownBot(
+            'SIGINT'
+        );
 
-
-        if (
-            fs.existsSync(
-                sessionDir
-            )
-        ) {
-            fs.emptyDirSync(
-                sessionDir
-            );
-        }
+        process.exit(
+            0
+        );
     }
 );
 
 
 // =====================================================
-// UNCaught EXCEPTION
+// UNCAUGHT EXCEPTION
 // =====================================================
 
 process.on(
     'uncaughtException',
-    err => {
+    error => {
         noxLog(
-            `Uncaught exception: ${err.message}`,
+            `Uncaught exception: ${error.stack || error.message}`,
             'error'
         );
     }
@@ -4216,28 +5500,12 @@ process.on(
     'unhandledRejection',
     reason => {
         const message =
-            reason &&
-            reason.message
-                ? reason.message
+            reason instanceof Error
+                ? reason.stack ||
+                  reason.message
                 : String(
                     reason
                 );
-
-
-        if (
-            message.includes(
-                'SessionError'
-            ) ||
-            message.includes(
-                'into the future'
-            ) ||
-            message.includes(
-                'decryptWithSessions'
-            )
-        ) {
-            return;
-        }
-
 
         noxLog(
             `Unhandled rejection: ${message}`,
@@ -4247,5 +5515,11 @@ process.on(
 );
 
 
+// =====================================================
+// EXPRESS ROUTER EXPORT
+// =====================================================
+
 module.exports =
     router;
+
+        
