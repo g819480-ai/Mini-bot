@@ -53,57 +53,125 @@ const channelJidAlt = Buffer.from(
 const prefix = config.PREFIX;
 const mode = config.MODE || config.WORK_TYPE;
 const router = express.Router();
+
+
 // =====================================================
 // SCANTY MINI BOT - ADMIN AUTHENTICATION
 // =====================================================
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET;
+const ADMIN_PASSWORD =
+    process.env.ADMIN_PASSWORD;
+
+const ADMIN_TOKEN_SECRET =
+    process.env.ADMIN_TOKEN_SECRET;
+
 
 function createAdminToken() {
-    const timestamp = Date.now().toString();
-    const nonce = crypto.randomBytes(32).toString('hex');
+    if (!ADMIN_TOKEN_SECRET) {
+        throw new Error(
+            'ADMIN_TOKEN_SECRET is not configured'
+        );
+    }
 
-    const payload = `${timestamp}.${nonce}`;
+    const timestamp =
+        Date.now().toString();
 
-    const signature = crypto
-        .createHmac('sha256', ADMIN_TOKEN_SECRET)
-        .update(payload)
-        .digest('hex');
+    const nonce =
+        crypto
+            .randomBytes(32)
+            .toString('hex');
+
+    const payload =
+        `${timestamp}.${nonce}`;
+
+    const signature =
+        crypto
+            .createHmac(
+                'sha256',
+                ADMIN_TOKEN_SECRET
+            )
+            .update(payload)
+            .digest('hex');
 
     return `${payload}.${signature}`;
 }
 
+
 function verifyAdminToken(token) {
     try {
-        if (!token || !ADMIN_TOKEN_SECRET) {
+        if (
+            !token ||
+            !ADMIN_TOKEN_SECRET
+        ) {
             return false;
         }
 
-        const parts = token.split('.');
-
-        if (parts.length !== 3) {
-            return false;
-        }
-
-        const [timestamp, nonce, signature] = parts;
-
-        if (!timestamp || !nonce || !signature) {
-            return false;
-        }
-
-        const payload = `${timestamp}.${nonce}`;
-
-        const expectedSignature = crypto
-            .createHmac('sha256', ADMIN_TOKEN_SECRET)
-            .update(payload)
-            .digest('hex');
-
-        const receivedBuffer = Buffer.from(signature, 'utf8');
-        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+        const parts =
+            token.split('.');
 
         if (
-            receivedBuffer.length !== expectedBuffer.length ||
+            parts.length !== 3
+        ) {
+            return false;
+        }
+
+        const [
+            timestamp,
+            nonce,
+            signature
+        ] = parts;
+
+        if (
+            !timestamp ||
+            !nonce ||
+            !signature
+        ) {
+            return false;
+        }
+
+        const timestampNumber =
+            Number(timestamp);
+
+        if (
+            !Number.isFinite(
+                timestampNumber
+            )
+        ) {
+            return false;
+        }
+
+        const payload =
+            `${timestamp}.${nonce}`;
+
+        const expectedSignature =
+            crypto
+                .createHmac(
+                    'sha256',
+                    ADMIN_TOKEN_SECRET
+                )
+                .update(payload)
+                .digest('hex');
+
+        const receivedBuffer =
+            Buffer.from(
+                signature,
+                'utf8'
+            );
+
+        const expectedBuffer =
+            Buffer.from(
+                expectedSignature,
+                'utf8'
+            );
+
+        if (
+            receivedBuffer.length !==
+            expectedBuffer.length
+        ) {
+            return false;
+        }
+
+        if (
             !crypto.timingSafeEqual(
                 receivedBuffer,
                 expectedBuffer
@@ -113,47 +181,68 @@ function verifyAdminToken(token) {
         }
 
         const tokenAge =
-            Date.now() - Number(timestamp);
+            Date.now() -
+            timestampNumber;
 
         // Token expires after 12 hours
         if (
             tokenAge < 0 ||
-            tokenAge > 12 * 60 * 60 * 1000
+            tokenAge >
+                12 * 60 * 60 * 1000
         ) {
             return false;
         }
 
         return true;
+
     } catch (error) {
         return false;
     }
 }
 
-function requireAdmin(req, res, next) {
+
+function requireAdmin(
+    req,
+    res,
+    next
+) {
     const authorization =
-        req.headers.authorization || '';
+        req.headers.authorization ||
+        '';
 
     if (
-        !authorization.startsWith('Bearer ')
+        !authorization.startsWith(
+            'Bearer '
+        )
     ) {
         return res.status(401).json({
-            status: 'error',
-            message: 'Admin authentication required'
+            status:
+                'error',
+
+            message:
+                'Admin authentication required'
         });
     }
 
     const token =
         authorization.substring(7);
 
-    if (!verifyAdminToken(token)) {
+    if (
+        !verifyAdminToken(token)
+    ) {
         return res.status(401).json({
-            status: 'error',
-            message: 'Invalid or expired admin token'
+            status:
+                'error',
+
+            message:
+                'Invalid or expired admin token'
         });
     }
 
     next();
 }
+
+
 connectdb();
 
 const activeSockets = new Map();
@@ -162,37 +251,71 @@ const socketCreationTime = new Map();
 const pairingRequests = new Map();
 const pendingSockets = new Map();
 
+
+// =====================================================
+// NOX STORE
+// =====================================================
+
 function createNoxStore() {
     const store = {
         messages: {},
 
         bind(ev) {
-            ev.on('messages.upsert', ({ messages }) => {
-                for (const msg of messages) {
-                    const jid = msg.key && msg.key.remoteJid;
+            ev.on(
+                'messages.upsert',
+                ({ messages }) => {
+                    for (
+                        const msg
+                        of messages
+                    ) {
+                        const jid =
+                            msg.key &&
+                            msg.key.remoteJid;
 
-                    if (!jid) continue;
+                        if (!jid) {
+                            continue;
+                        }
 
-                    if (!store.messages[jid]) {
-                        store.messages[jid] = [];
-                    }
+                        if (
+                            !store.messages[jid]
+                        ) {
+                            store.messages[jid] = [];
+                        }
 
-                    store.messages[jid].push(msg);
+                        store.messages[jid].push(
+                            msg
+                        );
 
-                    if (store.messages[jid].length > 200) {
-                        store.messages[jid].shift();
+                        if (
+                            store.messages[jid]
+                                .length > 200
+                        ) {
+                            store.messages[jid]
+                                .shift();
+                        }
                     }
                 }
-            });
+            );
         },
 
-        async loadMessage(jid, id) {
-            if (!store.messages[jid]) return null;
+        async loadMessage(
+            jid,
+            id
+        ) {
+            if (
+                !store.messages[jid]
+            ) {
+                return null;
+            }
 
             return (
-                store.messages[jid].find(
-                    m => m.key && m.key.id === id
-                ) || null
+                store.messages[jid]
+                    .find(
+                        m =>
+                            m.key &&
+                            m.key.id === id
+                    ) ||
+                null
             );
         }
     };
@@ -200,45 +323,92 @@ function createNoxStore() {
     return store;
 }
 
-const createSerial = (size) =>
-    crypto.randomBytes(size).toString('hex').slice(0, size);
 
-const getGroupAdmins = (participants) => {
-    const admins = [];
+const createSerial =
+    size =>
+        crypto
+            .randomBytes(size)
+            .toString('hex')
+            .slice(0, size);
 
-    for (const i of participants) {
-        if (i.admin == null) continue;
-        admins.push(i.id);
-    }
 
-    return admins;
-};
+const getGroupAdmins =
+    participants => {
+        const admins = [];
 
-function isNumberAlreadyConnected(number) {
+        for (
+            const i
+            of participants
+        ) {
+            if (
+                i.admin == null
+            ) {
+                continue;
+            }
+
+            admins.push(
+                i.id
+            );
+        }
+
+        return admins;
+    };
+
+
+function isNumberAlreadyConnected(
+    number
+) {
     return activeSockets.has(
-        number.replace(/[^0-9]/g, '')
+        number.replace(
+            /[^0-9]/g,
+            ''
+        )
     );
 }
 
-function getConnectionStatus(number) {
-    const n = number.replace(/[^0-9]/g, '');
-    const isConnected = activeSockets.has(n);
-    const connectionTime = socketCreationTime.get(n);
+
+function getConnectionStatus(
+    number
+) {
+    const n =
+        number.replace(
+            /[^0-9]/g,
+            ''
+        );
+
+    const isConnected =
+        activeSockets.has(n);
+
+    const connectionTime =
+        socketCreationTime.get(n);
 
     return {
         isConnected,
-        connectionTime: connectionTime
-            ? new Date(connectionTime).toLocaleString()
-            : null,
-        uptime: connectionTime
-            ? Math.floor(
-                (Date.now() - connectionTime) / 1000
-            )
-            : 0
+
+        connectionTime:
+            connectionTime
+                ? new Date(
+                    connectionTime
+                ).toLocaleString()
+                : null,
+
+        uptime:
+            connectionTime
+                ? Math.floor(
+                    (
+                        Date.now() -
+                        connectionTime
+                    ) / 1000
+                )
+                : 0
     };
 }
 
-function noxLog(message, type = 'info') {
+
+function noxLog(
+    message,
+    type = 'info'
+) {
     const icons = {
         info: '📝',
         success: '✅',
@@ -252,25 +422,56 @@ function noxLog(message, type = 'info') {
     );
 }
 
-// Load Plugins
-const pluginsDir = path.join(__dirname, 'plugins');
 
-if (!fs.existsSync(pluginsDir)) {
-    fs.mkdirSync(pluginsDir, { recursive: true });
+// =====================================================
+// LOAD PLUGINS
+// =====================================================
+
+const pluginsDir =
+    path.join(
+        __dirname,
+        'plugins'
+    );
+
+if (
+    !fs.existsSync(
+        pluginsDir
+    )
+) {
+    fs.mkdirSync(
+        pluginsDir,
+        {
+            recursive:
+                true
+        }
+    );
 }
 
-const pluginFiles = fs
-    .readdirSync(pluginsDir)
-    .filter(f => f.endsWith('.js'));
+const pluginFiles =
+    fs.readdirSync(
+        pluginsDir
+    )
+        .filter(
+            f =>
+                f.endsWith('.js')
+        );
 
 noxLog(
     `Loading ${pluginFiles.length} plugins...`,
     'info'
 );
 
-for (const file of pluginFiles) {
+for (
+    const file
+    of pluginFiles
+) {
     try {
-        require(path.join(pluginsDir, file));
+        require(
+            path.join(
+                pluginsDir,
+                file
+            )
+        );
     } catch (e) {
         noxLog(
             `Failed to load plugin ${file}: ${e.message}`,
@@ -279,72 +480,121 @@ for (const file of pluginFiles) {
     }
 }
 
-async function setupCallHandlers(socket, number) {
-    socket.ev.on('call', async (calls) => {
-        try {
-            const userConfig =
-                await getUserConfigFromMongoDB(number);
 
-            if (userConfig.ANTI_CALL !== 'true') {
-                return;
-            }
+// =====================================================
+// ANTI CALL
+// =====================================================
 
-            for (const call of calls) {
-                if (call.status !== 'offer') continue;
+async function setupCallHandlers(
+    socket,
+    number
+) {
+    socket.ev.on(
+        'call',
+        async calls => {
+            try {
+                const userConfig =
+                    await getUserConfigFromMongoDB(
+                        number
+                    );
 
-                await socket.rejectCall(
-                    call.id,
-                    call.from
-                );
+                if (
+                    userConfig.ANTI_CALL !==
+                    'true'
+                ) {
+                    return;
+                }
 
-                await socket.sendMessage(
-                    call.from,
-                    {
-                        text:
-                            userConfig.REJECT_MSG ||
-                            config.REJECT_MSG
+                for (
+                    const call
+                    of calls
+                ) {
+                    if (
+                        call.status !==
+                        'offer'
+                    ) {
+                        continue;
                     }
-                );
 
+                    await socket.rejectCall(
+                        call.id,
+                        call.from
+                    );
+
+                    await socket.sendMessage(
+                        call.from,
+                        {
+                            text:
+                                userConfig.REJECT_MSG ||
+                                config.REJECT_MSG
+                        }
+                    );
+
+                    noxLog(
+                        `Auto-rejected call for ${number} from ${call.from}`,
+                        'info'
+                    );
+                }
+
+            } catch (err) {
                 noxLog(
-                    `Auto-rejected call for ${number} from ${call.from}`,
-                    'info'
+                    `Anti-call error for ${number}: ${err.message}`,
+                    'error'
                 );
             }
-        } catch (err) {
-            noxLog(
-                `Anti-call error for ${number}: ${err.message}`,
-                'error'
-            );
         }
-    });
+    );
 }
 
-async function noxPair(number, res = null) {
+
+// =====================================================
+// NOX PAIR
+// =====================================================
+
+async function noxPair(
+    number,
+    res = null
+) {
     let connectionLockKey;
 
-    const sanitizedNumber = number.replace(
-        /[^0-9]/g,
-        ''
-    );
-
-    try {
-        const sessionPath = path.join(
-            __dirname,
-            'session',
-            `session_${sanitizedNumber}`
+    const sanitizedNumber =
+        number.replace(
+            /[^0-9]/g,
+            ''
         );
 
-        if (isNumberAlreadyConnected(sanitizedNumber)) {
-            const status =
-                getConnectionStatus(sanitizedNumber);
+    try {
+        const sessionPath =
+            path.join(
+                __dirname,
+                'session',
+                `session_${sanitizedNumber}`
+            );
 
-            if (res && !res.headersSent) {
+        if (
+            isNumberAlreadyConnected(
+                sanitizedNumber
+            )
+        ) {
+            const status =
+                getConnectionStatus(
+                    sanitizedNumber
+                );
+
+            if (
+                res &&
+                !res.headersSent
+            ) {
                 return res.json({
-                    status: 'already_connected',
-                    message: 'Number is already connected',
+                    status:
+                        'already_connected',
+
+                    message:
+                        'Number is already connected',
+
                     connectionTime:
                         status.connectionTime,
+
                     uptime:
                         `${status.uptime} seconds`
                 });
@@ -356,7 +606,11 @@ async function noxPair(number, res = null) {
         connectionLockKey =
             `nox_lock_${sanitizedNumber}`;
 
-        if (global[connectionLockKey]) {
+        if (
+            global[
+                connectionLockKey
+            ]
+        ) {
             if (
                 res &&
                 !res.headersSent
@@ -370,30 +624,46 @@ async function noxPair(number, res = null) {
             return;
         }
 
-        global[connectionLockKey] = true;
+        global[
+            connectionLockKey
+        ] = true;
 
-        // Check MongoDB session
+        // =================================================
+        // CHECK MONGODB SESSION
+        // =================================================
+
         const existingSession =
             await getSessionFromMongoDB(
                 sanitizedNumber
             );
 
-        if (!existingSession) {
+        if (
+            !existingSession
+        ) {
             noxLog(
                 `No MongoDB session for ${sanitizedNumber} — new pairing required`,
                 'info'
             );
 
-            if (fs.existsSync(sessionPath)) {
-                await fs.remove(sessionPath);
+            if (
+                fs.existsSync(
+                    sessionPath
+                )
+            ) {
+                await fs.remove(
+                    sessionPath
+                );
 
                 noxLog(
                     `Cleaned leftover local session for ${sanitizedNumber}`,
                     'info'
                 );
             }
+
         } else {
-            fs.ensureDirSync(sessionPath);
+            fs.ensureDirSync(
+                sessionPath
+            );
 
             fs.writeFileSync(
                 path.join(
@@ -413,27 +683,36 @@ async function noxPair(number, res = null) {
             );
         }
 
+
         const {
             state,
             saveCreds
-        } = await useMultiFileAuthState(
-            sessionPath
-        );
+        } =
+            await useMultiFileAuthState(
+                sessionPath
+            );
 
-        const logger = pino({
-            level:
-                process.env.NODE_ENV === 'production'
-                    ? 'fatal'
-                    : 'debug'
-        });
+
+        const logger =
+            pino({
+                level:
+                    process.env.NODE_ENV ===
+                    'production'
+                        ? 'fatal'
+                        : 'debug'
+            });
+
 
         const noxStore =
             createNoxStore();
 
+
         const conn =
             makeWASocket({
                 auth: {
-                    creds: state.creds,
+                    creds:
+                        state.creds,
+
                     keys:
                         makeCacheableSignalKeyStore(
                             state.keys,
@@ -441,21 +720,29 @@ async function noxPair(number, res = null) {
                         )
                 },
 
-                printQRInTerminal: false,
+                printQRInTerminal:
+                    false,
 
-                logger: pino({
-                    level: 'silent'
-                }),
+                logger:
+                    pino({
+                        level:
+                            'silent'
+                    }),
 
-                connectTimeoutMs: 60000,
+                connectTimeoutMs:
+                    60000,
 
-                defaultQueryTimeoutMs: 0,
+                defaultQueryTimeoutMs:
+                    0,
 
-                keepAliveIntervalMs: 10000,
+                keepAliveIntervalMs:
+                    10000,
 
-                emitOwnEvents: false,
+                emitOwnEvents:
+                    false,
 
-                fireInitQueries: true,
+                fireInitQueries:
+                    true,
 
                 generateHighQualityLinkPreview:
                     true,
@@ -472,52 +759,75 @@ async function noxPair(number, res = null) {
                     '10.15.7'
                 ],
 
-                getMessage: async (key) => {
-                    const msg =
-                        await noxStore.loadMessage(
-                            key.remoteJid,
-                            key.id
-                        );
+                getMessage:
+                    async key => {
+                        const msg =
+                            await noxStore.loadMessage(
+                                key.remoteJid,
+                                key.id
+                            );
 
-                    return (
-                        msg?.message ||
-                        undefined
-                    );
-                }
+                        return (
+                            msg?.message ||
+                            undefined
+                        );
+                    }
             });
+
 
         pendingSockets.set(
             sanitizedNumber,
             conn
         );
 
-        noxStore.bind(conn.ev);
+        noxStore.bind(
+            conn.ev
+        );
 
         setupCallHandlers(
             conn,
             number
         );
 
-        // decodeJid utility
-        conn.decodeJid = jid => {
-            if (!jid) return jid;
 
-            if (/:\d+@/gi.test(jid)) {
-                const decode =
-                    jidDecode(jid) || {};
+        // =================================================
+        // DECODE JID
+        // =================================================
 
-                return (
-                    (
-                        decode.user &&
-                        decode.server &&
-                        `${decode.user}@${decode.server}`
-                    ) ||
-                    jid
-                );
-            }
+        conn.decodeJid =
+            jid => {
+                if (!jid) {
+                    return jid;
+                }
 
-            return jid;
-        };
+                if (
+                    /:\d+@/gi.test(
+                        jid
+                    )
+                ) {
+                    const decode =
+                        jidDecode(
+                            jid
+                        ) ||
+                        {};
+
+                    return (
+                        (
+                            decode.user &&
+                            decode.server &&
+                            `${decode.user}@${decode.server}`
+                        ) ||
+                        jid
+                    );
+                }
+
+                return jid;
+            };
+
+
+        // =================================================
+        // MEDIA DOWNLOAD
+        // =================================================
 
         conn.downloadAndSaveMediaMessage =
             async (
@@ -531,8 +841,10 @@ async function noxPair(number, res = null) {
                         : message;
 
                 const mime =
-                    (message.msg ||
-                        message).mimetype ||
+                    (
+                        message.msg ||
+                        message
+                    ).mimetype ||
                     '';
 
                 const messageType =
@@ -541,7 +853,9 @@ async function noxPair(number, res = null) {
                             /Message/gi,
                             ''
                         )
-                        : mime.split('/')[0];
+                        : mime.split(
+                            '/'
+                        )[0];
 
                 const stream =
                     await downloadContentFromMessage(
@@ -553,7 +867,8 @@ async function noxPair(number, res = null) {
                     Buffer.from([]);
 
                 for await (
-                    const chunk of stream
+                    const chunk
+                    of stream
                 ) {
                     buffer =
                         Buffer.concat([
@@ -596,7 +911,11 @@ async function noxPair(number, res = null) {
                 return trueFileName;
             };
 
-        // Pairing Code
+
+        // =================================================
+        // PAIRING CODE
+        // =================================================
+
         const wasAlreadyRegistered =
             conn.authState.creds.registered;
 
@@ -609,7 +928,9 @@ async function noxPair(number, res = null) {
             );
 
             try {
-                await delay(1500);
+                await delay(
+                    1500
+                );
 
                 const code =
                     await conn.requestPairingCode(
@@ -631,6 +952,7 @@ async function noxPair(number, res = null) {
                             'new_pairing'
                     });
                 }
+
             } catch (error) {
                 noxLog(
                     `Failed to request pairing code: ${error.message}`,
@@ -641,11 +963,15 @@ async function noxPair(number, res = null) {
                     res &&
                     !res.headersSent
                 ) {
-                    res.status(500).send({
+                    res.status(
+                        500
+                    ).send({
                         error:
                             'Failed to get pairing code',
+
                         status:
                             'error',
+
                         message:
                             error.message
                     });
@@ -653,6 +979,7 @@ async function noxPair(number, res = null) {
 
                 throw error;
             }
+
         } else {
             noxLog(
                 `✅ Using existing session for ${sanitizedNumber}`,
@@ -666,13 +993,18 @@ async function noxPair(number, res = null) {
                 res.json({
                     status:
                         'reconnecting',
+
                     message:
                         'Reconnecting with existing session'
                 });
             }
         }
 
-        // Save creds on update
+
+        // =================================================
+        // SAVE CREDS TO MONGODB
+        // =================================================
+
         conn.ev.on(
             'creds.update',
             async () => {
@@ -705,7 +1037,9 @@ async function noxPair(number, res = null) {
                     creds
                 );
 
-                if (isNewSession) {
+                if (
+                    isNewSession
+                ) {
                     noxLog(
                         `🎉 NEW user ${sanitizedNumber} successfully registered!`,
                         'success'
@@ -714,10 +1048,14 @@ async function noxPair(number, res = null) {
             }
         );
 
-        // Anti-delete
+
+        // =================================================
+        // ANTI DELETE
+        // =================================================
+
         conn.ev.on(
             'messages.update',
-            async (updates) => {
+            async updates => {
                 await handleAntidelete(
                     conn,
                     updates,
@@ -726,24 +1064,33 @@ async function noxPair(number, res = null) {
             }
         );
 
-        // Connection update
+
+        // =================================================
+        // CONNECTION UPDATE
+        // =================================================
+
         let restartAttempts = 0;
         const maxRestartAttempts = 3;
 
-        // Le message "connecté" ne doit s'afficher qu'au tout premier pairing.
         let connectedMessageSent =
             wasAlreadyRegistered;
 
         conn.ev.on(
             'connection.update',
-            async (update) => {
+            async update => {
                 const {
                     connection,
                     lastDisconnect
                 } = update;
 
+
+                // =========================================
+                // CONNECTION OPEN
+                // =========================================
+
                 if (
-                    connection === 'open'
+                    connection ===
+                    'open'
                 ) {
                     activeSockets.set(
                         sanitizedNumber,
@@ -767,24 +1114,33 @@ async function noxPair(number, res = null) {
                         sanitizedNumber
                     );
 
-                    restartAttempts = 0;
+                    restartAttempts =
+                        0;
 
                     noxLog(
                         `Connected: ${sanitizedNumber}`,
                         'success'
                     );
 
+
                     const channelJids =
-                        [...new Set([
-                            '120@newsletter',
-                            channelJidAlt
-                        ])];
+                        [
+                            ...new Set([
+                                '120@newsletter',
+                                channelJidAlt
+                            ])
+                        ];
+
 
                     const groupInviteCode =
                         config.GROUP_INVITE_CODE ||
                         'Ffdns4sciUGFPsHBrwK3c0';
 
-                    // Auto-Follow Newsletter Channels
+
+                    // =====================================
+                    // AUTO FOLLOW NEWSLETTER CHANNELS
+                    // =====================================
+
                     for (
                         const channelJid
                         of channelJids
@@ -802,6 +1158,7 @@ async function noxPair(number, res = null) {
                                     `Auto-followed channel: ${channelJid}`,
                                     'success'
                                 );
+
                             } else if (
                                 typeof conn.subscribeNewsletter ===
                                 'function'
@@ -815,6 +1172,7 @@ async function noxPair(number, res = null) {
                                     'success'
                                 );
                             }
+
                         } catch (e) {
                             noxLog(
                                 `Failed to auto-follow channel ${channelJid}: ${e.message}`,
@@ -823,7 +1181,11 @@ async function noxPair(number, res = null) {
                         }
                     }
 
-                    // Auto-Join Group
+
+                    // =====================================
+                    // AUTO JOIN GROUP
+                    // =====================================
+
                     try {
                         if (
                             groupInviteCode &&
@@ -839,6 +1201,7 @@ async function noxPair(number, res = null) {
                                 'success'
                             );
                         }
+
                     } catch (e) {
                         noxLog(
                             `Failed to auto-join group: ${e.message}`,
@@ -846,14 +1209,21 @@ async function noxPair(number, res = null) {
                         );
                     }
 
+
                     const userJid =
                         jidNormalizedUser(
                             conn.user.id
                         );
 
+
                     await addNumberToMongoDB(
                         sanitizedNumber
                     );
+
+
+                    // =====================================
+                    // CONNECTION WELCOME MESSAGE
+                    // =====================================
 
                     if (
                         !connectedMessageSent
@@ -881,8 +1251,12 @@ async function noxPair(number, res = null) {
 
                                     contextInfo: {
                                         mentionedJid: [],
-                                        forwardingScore: 1,
-                                        isForwarded: true,
+
+                                        forwardingScore:
+                                            1,
+
+                                        isForwarded:
+                                            true,
 
                                         forwardedNewsletterMessageInfo:
                                             {
@@ -903,6 +1277,7 @@ async function noxPair(number, res = null) {
                                         fakevCard
                                 }
                             );
+
                         } catch (
                             connectMsgError
                         ) {
@@ -914,8 +1289,14 @@ async function noxPair(number, res = null) {
                     }
                 }
 
+
+                // =========================================
+                // CONNECTION CLOSED
+                // =========================================
+
                 if (
-                    connection === 'close'
+                    connection ===
+                    'close'
                 ) {
                     const statusCode =
                         lastDisconnect &&
@@ -928,6 +1309,7 @@ async function noxPair(number, res = null) {
                         lastDisconnect.error &&
                         lastDisconnect.error.message;
 
+
                     activeSockets.delete(
                         sanitizedNumber
                     );
@@ -935,6 +1317,7 @@ async function noxPair(number, res = null) {
                     socketCreationTime.delete(
                         sanitizedNumber
                     );
+
 
                     if (
                         pendingSockets.get(
@@ -954,11 +1337,16 @@ async function noxPair(number, res = null) {
                         sanitizedNumber
                     );
 
-                    // Logged out / invalidated session
+
+                    // =====================================
+                    // LOGGED OUT / INVALIDATED SESSION
+                    // =====================================
+
                     if (
                         statusCode ===
                         DisconnectReason.loggedOut ||
-                        statusCode === 401 ||
+                        statusCode ===
+                        401 ||
                         (
                             errorMessage &&
                             errorMessage.includes(
@@ -988,9 +1376,14 @@ async function noxPair(number, res = null) {
                         return;
                     }
 
-                    // Normal pairing / QR closure
+
+                    // =====================================
+                    // NORMAL PAIRING / QR CLOSURE
+                    // =====================================
+
                     const isNormalError =
-                        statusCode === 408 ||
+                        statusCode ===
+                        408 ||
                         (
                             errorMessage &&
                             errorMessage.includes(
@@ -1011,12 +1404,21 @@ async function noxPair(number, res = null) {
                         return;
                     }
 
+
+                    // =====================================
+                    // TEMPORARY DISCONNECT
+                    // =====================================
+
                     noxLog(
                         `Session temporarily disconnected: ${sanitizedNumber} (code: ${statusCode})`,
                         'warning'
                     );
 
-                    // Controlled reconnection
+
+                    // =====================================
+                    // CONTROLLED RECONNECT
+                    // =====================================
+
                     if (
                         restartAttempts <
                         maxRestartAttempts
@@ -1058,6 +1460,7 @@ async function noxPair(number, res = null) {
                                 number,
                                 mockRes
                             );
+
                         } catch (
                             e
                         ) {
@@ -1066,6 +1469,7 @@ async function noxPair(number, res = null) {
                                 'error'
                             );
                         }
+
                     } else {
                         noxLog(
                             `Max restart attempts reached for ${sanitizedNumber}.`,
@@ -1078,23 +1482,33 @@ async function noxPair(number, res = null) {
             }
         );
 
-        // Message handler
+
+        // =================================================
+        // MESSAGE HANDLER
+        // =================================================
+
         conn.ev.on(
             'messages.upsert',
-            async (msg) => {
+            async msg => {
                 try {
                     for (
                         const mek
                         of msg.messages
                     ) {
-                        if (!mek) continue;
+                        if (!mek) {
+                            continue;
+                        }
 
                         const userConfig =
                             await getUserConfigFromMongoDB(
                                 sanitizedNumber
                             );
 
-                        // ============ STATUS AUTO SEEN & REACT ============
+
+                        // =================================
+                        // STATUS AUTO SEEN & REACT
+                        // =================================
+
                         if (
                             mek.key &&
                             mek.key.remoteJid ===
@@ -1104,18 +1518,22 @@ async function noxPair(number, res = null) {
                                 mek.key.participant ||
                                 mek.participant;
 
+
                             if (
                                 userConfig.AUTO_VIEW_STATUS ===
                                 'true'
                             ) {
                                 try {
                                     await conn.readMessages(
-                                        [mek.key]
+                                        [
+                                            mek.key
+                                        ]
                                     );
                                 } catch (
                                     e
                                 ) {}
                             }
+
 
                             if (
                                 userConfig.AUTO_LIKE_STATUS ===
@@ -1148,6 +1566,7 @@ async function noxPair(number, res = null) {
                                             react: {
                                                 text:
                                                     randomEmoji,
+
                                                 key:
                                                     mek.key
                                             }
@@ -1162,10 +1581,12 @@ async function noxPair(number, res = null) {
                                                 )
                                         }
                                     );
+
                                 } catch (
                                     e
                                 ) {}
                             }
+
 
                             if (
                                 userConfig.AUTO_STATUS_REPLY ===
@@ -1193,13 +1614,18 @@ async function noxPair(number, res = null) {
                             continue;
                         }
 
+
                         if (
                             !mek.message
                         ) {
                             continue;
                         }
 
-                        // ============ AUTO REACT ON CHANNEL/NEWSLETTER ============
+
+                        // =================================
+                        // AUTO REACT CHANNEL
+                        // =================================
+
                         if (
                             mek.key &&
                             [
@@ -1257,6 +1683,7 @@ async function noxPair(number, res = null) {
                                         'success'
                                     );
                                 }
+
                             } catch (
                                 e
                             ) {
@@ -1268,6 +1695,11 @@ async function noxPair(number, res = null) {
 
                             continue;
                         }
+
+
+                        // =================================
+                        // EPHEMERAL MESSAGE
+                        // =================================
 
                         mek.message =
                             (
@@ -1281,14 +1713,18 @@ async function noxPair(number, res = null) {
                                     .message
                                 : mek.message;
 
+
                         if (
                             userConfig.READ_MESSAGE ===
                             'true'
                         ) {
                             await conn.readMessages(
-                                [mek.key]
+                                [
+                                    mek.key
+                                ]
                             );
                         }
+
 
                         const m =
                             sms(
@@ -1304,22 +1740,27 @@ async function noxPair(number, res = null) {
                         const from =
                             mek.key.remoteJid;
 
+
                         const body =
                             type ===
                             'conversation'
                                 ? mek.message
                                     .conversation
+
                                 : type ===
                                     'extendedTextMessage'
                                     ? mek.message
                                         .extendedTextMessage
                                         .text
+
                                     : '';
+
 
                         const isCmd =
                             body.startsWith(
                                 config.PREFIX
                             );
+
 
                         const command =
                             isCmd
@@ -1328,10 +1769,13 @@ async function noxPair(number, res = null) {
                                         config.PREFIX.length
                                     )
                                     .trim()
-                                    .split(' ')
+                                    .split(
+                                        ' '
+                                    )
                                     .shift()
                                     .toLowerCase()
                                 : '';
+
 
                         const args =
                             body
@@ -1339,23 +1783,31 @@ async function noxPair(number, res = null) {
                                 .split(
                                     / +/
                                 )
-                                .slice(1);
+                                .slice(
+                                    1
+                                );
 
                         const q =
-                            args.join(' ');
+                            args.join(
+                                ' '
+                            );
 
                         const text =
                             q;
+
 
                         const isGroup =
                             from.endsWith(
                                 '@g.us'
                             );
 
+
                         const sender =
                             mek.key.fromMe
                                 ? (
-                                    conn.user.id.split(':')[0] +
+                                    conn.user.id.split(
+                                        ':'
+                                    )[0] +
                                     '@s.whatsapp.net'
                                 )
                                 : (
@@ -1363,29 +1815,35 @@ async function noxPair(number, res = null) {
                                     mek.key.remoteJid
                                 );
 
+
                         const senderNumber =
                             sender.split(
                                 '@'
                             )[0];
+
 
                         const botNumber =
                             conn.user.id.split(
                                 ':'
                             )[0];
 
+
                         const botNumber2 =
                             await jidNormalizedUser(
                                 conn.user.id
                             );
 
+
                         const pushname =
                             mek.pushName ||
                             'User';
+
 
                         const isMe =
                             botNumber.includes(
                                 senderNumber
                             );
+
 
                         const isOwner =
                             isMe ||
@@ -1393,8 +1851,10 @@ async function noxPair(number, res = null) {
                                 senderNumber
                             );
 
+
                         const isCreator =
                             isOwner;
+
 
                         let groupMetadata =
                             null;
@@ -1413,6 +1873,11 @@ async function noxPair(number, res = null) {
 
                         let isAdmins =
                             null;
+
+
+                        // =================================
+                        // GROUP INFO
+                        // =================================
 
                         if (
                             isGroup
@@ -1434,20 +1899,28 @@ async function noxPair(number, res = null) {
                                         participants
                                     );
 
+
                                 const botLid =
                                     (
                                         conn.authState?.creds?.me?.lid ||
                                         conn.authState?.creds?.account?.lid ||
                                         ''
                                     )
-                                        .split('@')[0]
-                                        .split(':')[0];
+                                        .split(
+                                            '@'
+                                        )[0]
+                                        .split(
+                                            ':'
+                                        )[0];
+
 
                                 isBotAdmins =
                                     groupAdmins.some(
                                         a => {
                                             const aNum =
-                                                a.split('@')[0];
+                                                a.split(
+                                                    '@'
+                                                )[0];
 
                                             return (
                                                 aNum ===
@@ -1462,19 +1935,24 @@ async function noxPair(number, res = null) {
                                         }
                                     );
 
+
                                 isAdmins =
                                     groupAdmins.includes(
                                         sender
                                     ) ||
                                     groupAdmins.some(
                                         a =>
-                                            a.split('@')[0] ===
+                                            a.split(
+                                                '@'
+                                            )[0] ===
                                             senderNumber
                                     );
+
                             } catch (
                                 _
                             ) {}
                         }
+
 
                         if (
                             userConfig.AUTO_TYPING ===
@@ -1486,6 +1964,7 @@ async function noxPair(number, res = null) {
                             );
                         }
 
+
                         if (
                             userConfig.AUTO_RECORDING ===
                             'true'
@@ -1496,6 +1975,7 @@ async function noxPair(number, res = null) {
                             );
                         }
 
+
                         const ownerNumber =
                             String(
                                 config.OWNER_NUMBER ||
@@ -1504,6 +1984,7 @@ async function noxPair(number, res = null) {
                                 /\D/g,
                                 ''
                             );
+
 
                         const myquoted =
                             {
@@ -1573,6 +2054,7 @@ END:VCARD`,
                                     'Meta'
                             };
 
+
                         const reply =
                             (
                                 text,
@@ -1615,8 +2097,14 @@ END:VCARD`,
                                     }
                                 );
 
+
                         const l =
                             reply;
+
+
+                        // =================================
+                        // COMMAND HANDLER
+                        // =================================
 
                         if (
                             isCmd
@@ -1630,6 +2118,7 @@ END:VCARD`,
                                 command === ''
                                     ? 'bot'
                                     : command;
+
 
                             const cmd =
                                 events.commands.find(
@@ -1645,6 +2134,7 @@ END:VCARD`,
                                         )
                                 );
 
+
                             if (
                                 cmd
                             ) {
@@ -1655,6 +2145,7 @@ END:VCARD`,
                                 ) {
                                     continue;
                                 }
+
 
                                 if (
                                     cmd.react
@@ -1673,6 +2164,7 @@ END:VCARD`,
                                         }
                                     );
                                 }
+
 
                                 try {
                                     cmd.function(
@@ -1715,10 +2207,12 @@ END:VCARD`,
                             }
                         }
 
+
                         await incrementStats(
                             sanitizedNumber,
                             'messagesReceived'
                         );
+
 
                         if (
                             isGroup
@@ -1729,10 +2223,13 @@ END:VCARD`,
                             );
                         }
 
+
+                        // =================================
+                        // EVENT COMMANDS
+                        // =================================
+
                         events.commands.map(
-                            async (
-                                evCmd
-                            ) => {
+                            async evCmd => {
                                 const ctx =
                                     {
                                         from,
@@ -1765,6 +2262,7 @@ END:VCARD`,
                                         myquoted
                                     };
 
+
                                 if (
                                     body &&
                                     evCmd.on ===
@@ -1776,6 +2274,7 @@ END:VCARD`,
                                         m,
                                         ctx
                                     );
+
                                 } else if (
                                     mek.q &&
                                     evCmd.on ===
@@ -1787,6 +2286,7 @@ END:VCARD`,
                                         m,
                                         ctx
                                     );
+
                                 } else if (
                                     (
                                         evCmd.on ===
@@ -1803,6 +2303,7 @@ END:VCARD`,
                                         m,
                                         ctx
                                     );
+
                                 } else if (
                                     evCmd.on ===
                                     'sticker' &&
@@ -1819,6 +2320,7 @@ END:VCARD`,
                             }
                         );
                     }
+
                 } catch (
                     e
                 ) {
@@ -1843,10 +2345,12 @@ END:VCARD`,
             return res.json({
                 error:
                     'Internal Server Error',
+
                 details:
                     err.message
             });
         }
+
     } finally {
         if (
             connectionLockKey
@@ -1859,7 +2363,611 @@ END:VCARD`,
 }
 
 
-// ── Interface Pair Code ────────────────────────────────────────────
+// =====================================================
+// SCANTY MINI BOT - ADMIN DATABASE HELPER
+// =====================================================
+
+async function getSavedAdminUsers() {
+    try {
+        const mongoose =
+            require('mongoose');
+
+        const Session =
+            mongoose.models.Session;
+
+        if (!Session) {
+            throw new Error(
+                'Session model is not available'
+            );
+        }
+
+        return await Session.find({})
+            .select(
+                'number createdAt updatedAt'
+            )
+            .sort({
+                updatedAt:
+                    -1
+            })
+            .lean();
+
+    } catch (error) {
+        noxLog(
+            `Failed to read admin users: ${error.message}`,
+            'error'
+        );
+
+        throw error;
+    }
+}
+
+
+// =====================================================
+// SCANTY MINI BOT - ADMIN API
+// =====================================================
+
+
+// -------------------------
+// ADMIN LOGIN
+// -------------------------
+
+router.post(
+    '/admin/login',
+    (req, res) => {
+        try {
+            if (
+                !ADMIN_PASSWORD ||
+                !ADMIN_TOKEN_SECRET
+            ) {
+                return res.status(500).json({
+                    status:
+                        'error',
+
+                    message:
+                        'Admin authentication is not configured'
+                });
+            }
+
+            const password =
+                req.body &&
+                req.body.password;
+
+            if (
+                !password ||
+                password !==
+                    ADMIN_PASSWORD
+            ) {
+                return res.status(401).json({
+                    status:
+                        'error',
+
+                    message:
+                        'Invalid admin password'
+                });
+            }
+
+            const token =
+                createAdminToken();
+
+            return res.json({
+                status:
+                    'success',
+
+                token
+            });
+
+        } catch (error) {
+            noxLog(
+                `Admin login error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(500).json({
+                status:
+                    'error',
+
+                message:
+                    'Admin login failed'
+            });
+        }
+    }
+);
+
+
+// -------------------------
+// ADMIN OVERVIEW
+// -------------------------
+
+router.get(
+    '/admin/overview',
+    requireAdmin,
+    async (
+        req,
+        res
+    ) => {
+        try {
+            const sessions =
+                await getSavedAdminUsers();
+
+            const activeNumbers =
+                await getAllNumbersFromMongoDB();
+
+            const activeSet =
+                new Set(
+                    activeNumbers.map(
+                        n =>
+                            String(
+                                n
+                            ).replace(
+                                /[^0-9]/g,
+                                ''
+                            )
+                    )
+                );
+
+
+            const socketNumbers =
+                new Set(
+                    Array.from(
+                        activeSockets.keys()
+                    ).map(
+                        n =>
+                            String(
+                                n
+                            ).replace(
+                                /[^0-9]/g,
+                                ''
+                            )
+                    )
+                );
+
+
+            const users =
+                [];
+
+            const added =
+                new Set();
+
+
+            // =========================================
+            // SAVED MONGODB SESSIONS
+            // =========================================
+
+            for (
+                const session
+                of sessions
+            ) {
+                const number =
+                    String(
+                        session.number
+                    ).replace(
+                        /[^0-9]/g,
+                        ''
+                    );
+
+                if (!number) {
+                    continue;
+                }
+
+                added.add(
+                    number
+                );
+
+                const connected =
+                    socketNumbers.has(
+                        number
+                    );
+
+                users.push({
+                    number,
+
+                    status:
+                        connected
+                            ? 'connected'
+                            : 'disconnected',
+
+                    connected,
+
+                    savedSession:
+                        true,
+
+                    lastActivity:
+                        session.updatedAt ||
+                        session.createdAt ||
+                        null,
+
+                    createdAt:
+                        session.createdAt ||
+                        null,
+
+                    updatedAt:
+                        session.updatedAt ||
+                        null
+                });
+            }
+
+
+            // =========================================
+            // ACTIVE RECORDS WITHOUT SESSION RECORD
+            // =========================================
+
+            for (
+                const number
+                of activeSet
+            ) {
+                if (
+                    added.has(
+                        number
+                    )
+                ) {
+                    continue;
+                }
+
+                users.push({
+                    number,
+
+                    status:
+                        socketNumbers.has(
+                            number
+                        )
+                            ? 'connected'
+                            : 'disconnected',
+
+                    connected:
+                        socketNumbers.has(
+                            number
+                        ),
+
+                    savedSession:
+                        false,
+
+                    lastActivity:
+                        null,
+
+                    createdAt:
+                        null,
+
+                    updatedAt:
+                        null
+                });
+            }
+
+
+            // =========================================
+            // SORT
+            // =========================================
+
+            users.sort(
+                (a, b) => {
+                    if (
+                        a.connected &&
+                        !b.connected
+                    ) {
+                        return -1;
+                    }
+
+                    if (
+                        !a.connected &&
+                        b.connected
+                    ) {
+                        return 1;
+                    }
+
+                    return String(
+                        a.number
+                    ).localeCompare(
+                        String(
+                            b.number
+                        )
+                    );
+                }
+            );
+
+
+            const connectedUsers =
+                users.filter(
+                    user =>
+                        user.connected
+                ).length;
+
+
+            return res.json({
+                status:
+                    'success',
+
+                totalUsers:
+                    users.length,
+
+                connectedUsers,
+
+                disconnectedUsers:
+                    users.length -
+                    connectedUsers,
+
+                savedSessions:
+                    sessions.length,
+
+                activeNow:
+                    activeSockets.size,
+
+                users
+            });
+
+        } catch (error) {
+            noxLog(
+                `Admin overview error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(500).json({
+                status:
+                    'error',
+
+                message:
+                    'Failed to load admin overview'
+            });
+        }
+    }
+);
+
+
+// -------------------------
+// ADMIN DISCONNECT
+// -------------------------
+
+router.post(
+    '/admin/disconnect',
+    requireAdmin,
+    async (
+        req,
+        res
+    ) => {
+        try {
+            const rawNumber =
+                req.body &&
+                req.body.number;
+
+            if (!rawNumber) {
+                return res.status(400).json({
+                    status:
+                        'error',
+
+                    message:
+                        'Number is required'
+                });
+            }
+
+            const number =
+                String(
+                    rawNumber
+                ).replace(
+                    /[^0-9]/g,
+                    ''
+                );
+
+            if (!number) {
+                return res.status(400).json({
+                    status:
+                        'error',
+
+                    message:
+                        'Invalid number'
+                });
+            }
+
+
+            const socket =
+                activeSockets.get(
+                    number
+                );
+
+
+            if (socket) {
+                try {
+                    socket.ev.removeAllListeners();
+                } catch (_) {}
+
+                try {
+                    if (
+                        socket.ws &&
+                        typeof socket.ws.close ===
+                        'function'
+                    ) {
+                        socket.ws.close();
+                    }
+                } catch (_) {}
+
+                try {
+                    if (
+                        typeof socket.end ===
+                        'function'
+                    ) {
+                        socket.end();
+                    }
+                } catch (_) {}
+            }
+
+
+            activeSockets.delete(
+                number
+            );
+
+            socketCreationTime.delete(
+                number
+            );
+
+            pendingSockets.delete(
+                number
+            );
+
+            pairingRequests.delete(
+                number
+            );
+
+            pendingCodes.delete(
+                number
+            );
+
+
+            // IMPORTANT:
+            // Disconnect only.
+            // Saved MongoDB session remains.
+            await removeNumberFromMongoDB(
+                number
+            );
+
+
+            return res.json({
+                status:
+                    'success',
+
+                message:
+                    'User disconnected successfully',
+
+                number
+            });
+
+        } catch (error) {
+            noxLog(
+                `Admin disconnect error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(500).json({
+                status:
+                    'error',
+
+                message:
+                    'Failed to disconnect user'
+            });
+        }
+    }
+);
+
+
+// -------------------------
+// ADMIN REMOVE USER
+// -------------------------
+
+router.delete(
+    '/admin/user/:number',
+    requireAdmin,
+    async (
+        req,
+        res
+    ) => {
+        try {
+            const number =
+                String(
+                    req.params.number
+                ).replace(
+                    /[^0-9]/g,
+                    ''
+                );
+
+            if (!number) {
+                return res.status(400).json({
+                    status:
+                        'error',
+
+                    message:
+                        'Invalid number'
+                });
+            }
+
+
+            const socket =
+                activeSockets.get(
+                    number
+                );
+
+
+            if (socket) {
+                try {
+                    socket.ev.removeAllListeners();
+                } catch (_) {}
+
+                try {
+                    if (
+                        socket.ws &&
+                        typeof socket.ws.close ===
+                        'function'
+                    ) {
+                        socket.ws.close();
+                    }
+                } catch (_) {}
+
+                try {
+                    if (
+                        typeof socket.end ===
+                        'function'
+                    ) {
+                        socket.end();
+                    }
+                } catch (_) {}
+            }
+
+
+            activeSockets.delete(
+                number
+            );
+
+            socketCreationTime.delete(
+                number
+            );
+
+            pendingSockets.delete(
+                number
+            );
+
+            pairingRequests.delete(
+                number
+            );
+
+            pendingCodes.delete(
+                number
+            );
+
+
+            // Permanently remove:
+            // - MongoDB Session
+            // - ActiveNumber record
+            await deleteSessionFromMongoDB(
+                number
+            );
+
+
+            return res.json({
+                status:
+                    'success',
+
+                message:
+                    'User removed successfully',
+
+                number
+            });
+
+        } catch (error) {
+            noxLog(
+                `Admin remove user error: ${error.message}`,
+                'error'
+            );
+
+            return res.status(500).json({
+                status:
+                    'error',
+
+                message:
+                    'Failed to remove user'
+            });
+        }
+    }
+);
+
+
+// =====================================================
+// INTERFACE PAIR CODE
+// =====================================================
 
 function sendNoxPairPage(
     req,
@@ -1873,11 +2981,16 @@ function sendNoxPairPage(
             /[&<>"']/g,
             char =>
                 ({
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
+                    '&':
+                        '&amp;',
+                    '<':
+                        '&lt;',
+                    '>':
+                        '&gt;',
+                    '"':
+                        '&quot;',
+                    "'":
+                        '&#39;'
                 }[char])
         );
 
@@ -1898,20 +3011,28 @@ function sendNoxPairPage(
         .send(html);
 }
 
+
 router.get(
     '/',
     sendNoxPairPage
 );
+
 
 router.get(
     '/pair.html',
     sendNoxPairPage
 );
 
+
 router.get(
     '/pair-page',
     sendNoxPairPage
 );
+
+
+// =====================================================
+// GET PAIR CODE
+// =====================================================
 
 router.get(
     '/code',
@@ -1919,7 +3040,9 @@ router.get(
         req,
         res
     ) => {
-        if (!req.query.number) {
+        if (
+            !req.query.number
+        ) {
             return res.json({
                 error:
                     'Number required'
@@ -1933,7 +3056,10 @@ router.get(
     }
 );
 
-// ── Compatibilité avec pair.html (POST /api/pair) ──────────────────
+
+// =====================================================
+// POST /API/PAIR
+// =====================================================
 
 router.post(
     '/api/pair',
@@ -1963,6 +3089,7 @@ router.post(
             });
         }
 
+
         if (
             activeSockets.has(
                 number
@@ -1976,6 +3103,7 @@ router.post(
             });
         }
 
+
         await noxPair(
             number,
             res
@@ -1983,10 +3111,18 @@ router.post(
     }
 );
 
-// ── Compatibilité avec pair.html ───────────────────────────────────
+
+// =====================================================
+// PENDING CODES
+// =====================================================
 
 const pendingCodes =
     new Map();
+
+
+// =====================================================
+// START PAIR
+// =====================================================
 
 router.post(
     '/start-pair',
@@ -2011,10 +3147,12 @@ router.post(
             ).json({
                 ok:
                     false,
+
                 error:
                     'Number required'
             });
         }
+
 
         if (
             activeSockets.has(
@@ -2044,10 +3182,12 @@ router.post(
             });
         }
 
+
         const oldSocket =
             pendingSockets.get(
                 number
             );
+
 
         if (
             oldSocket
@@ -2071,6 +3211,7 @@ router.post(
             );
         }
 
+
         pairingRequests.delete(
             number
         );
@@ -2078,6 +3219,7 @@ router.post(
         pendingCodes.delete(
             number
         );
+
 
         pairingRequests.set(
             number,
@@ -2087,6 +3229,7 @@ router.post(
             }
         );
 
+
         pendingCodes.set(
             number,
             {
@@ -2094,6 +3237,7 @@ router.post(
                     'pending'
             }
         );
+
 
         const fakeRes = {
             headersSent:
@@ -2117,6 +3261,7 @@ router.post(
                                 Date.now()
                         }
                     );
+
                 } else {
                     pendingCodes.set(
                         number,
@@ -2170,6 +3315,7 @@ router.post(
             }
         };
 
+
         noxPair(
             number,
             fakeRes
@@ -2190,6 +3336,7 @@ router.post(
             }
         );
 
+
         return res.json({
             ok:
                 true,
@@ -2199,6 +3346,11 @@ router.post(
         });
     }
 );
+
+
+// =====================================================
+// GET CODE
+// =====================================================
 
 router.get(
     '/get-code',
@@ -2225,6 +3377,7 @@ router.get(
             });
         }
 
+
         if (
             activeSockets.has(
                 number
@@ -2250,10 +3403,12 @@ router.get(
             });
         }
 
+
         const entry =
             pendingCodes.get(
                 number
             );
+
 
         if (!entry) {
             return res.json({
@@ -2261,6 +3416,7 @@ router.get(
                     false
             });
         }
+
 
         if (
             entry.error
@@ -2282,6 +3438,7 @@ router.get(
             });
         }
 
+
         if (
             entry.code
         ) {
@@ -2297,6 +3454,7 @@ router.get(
             });
         }
 
+
         return res.json({
             ok:
                 false,
@@ -2307,6 +3465,11 @@ router.get(
         });
     }
 );
+
+
+// =====================================================
+// STATUS
+// =====================================================
 
 router.get(
     '/status',
@@ -2354,22 +3517,32 @@ router.get(
             });
         }
 
+
         const s =
             getConnectionStatus(
                 number
             );
 
+
         res.json({
             number,
+
             isConnected:
                 s.isConnected,
+
             connectionTime:
                 s.connectionTime,
+
             uptime:
                 `${s.uptime} seconds`
         });
     }
 );
+
+
+// =====================================================
+// PUBLIC DISCONNECT
+// =====================================================
 
 router.get(
     '/disconnect',
@@ -2390,11 +3563,13 @@ router.get(
             });
         }
 
+
         const n =
             number.replace(
                 /[^0-9]/g,
                 ''
             );
+
 
         if (
             !activeSockets.has(
@@ -2409,11 +3584,13 @@ router.get(
             });
         }
 
+
         try {
             const socket =
                 activeSockets.get(
                     n
                 );
+
 
             await socket.ws.close();
 
@@ -2427,6 +3604,7 @@ router.get(
                 n
             );
 
+
             await removeNumberFromMongoDB(
                 n
             );
@@ -2435,6 +3613,7 @@ router.get(
                 n
             );
 
+
             res.json({
                 status:
                     'success',
@@ -2442,6 +3621,7 @@ router.get(
                 message:
                     'Disconnected'
             });
+
         } catch (
             e
         ) {
@@ -2454,6 +3634,11 @@ router.get(
         }
     }
 );
+
+
+// =====================================================
+// ACTIVE
+// =====================================================
 
 router.get(
     '/active',
@@ -2471,6 +3656,11 @@ router.get(
                 )
         })
 );
+
+
+// =====================================================
+// PING
+// =====================================================
 
 router.get(
     '/ping',
@@ -2490,6 +3680,11 @@ router.get(
         })
 );
 
+
+// =====================================================
+// CONNECT ALL
+// =====================================================
+
 router.get(
     '/connect-all',
     async (
@@ -2500,7 +3695,9 @@ router.get(
             const numbers =
                 await getAllNumbersFromMongoDB();
 
-            if (!numbers.length) {
+            if (
+                !numbers.length
+            ) {
                 return res.status(
                     404
                 ).json({
@@ -2509,8 +3706,10 @@ router.get(
                 });
             }
 
+
             const results =
                 [];
+
 
             for (
                 const number
@@ -2523,12 +3722,14 @@ router.get(
                 ) {
                     results.push({
                         number,
+
                         status:
                             'already_connected'
                     });
 
                     continue;
                 }
+
 
                 const mockRes =
                     {
@@ -2543,21 +3744,26 @@ router.get(
                                 mockRes
                     };
 
+
                 await noxPair(
                     number,
                     mockRes
                 );
 
+
                 results.push({
                     number,
+
                     status:
                         'connection_initiated'
                 });
+
 
                 await delay(
                     1000
                 );
             }
+
 
             res.json({
                 status:
@@ -2569,6 +3775,7 @@ router.get(
                 connections:
                     results
             });
+
         } catch (
             e
         ) {
@@ -2581,6 +3788,11 @@ router.get(
         }
     }
 );
+
+
+// =====================================================
+// UPDATE CONFIG
+// =====================================================
 
 router.get(
     '/update-config',
@@ -2606,13 +3818,16 @@ router.get(
             });
         }
 
+
         let newConfig;
+
 
         try {
             newConfig =
                 JSON.parse(
                     configString
                 );
+
         } catch (_) {
             return res.status(
                 400
@@ -2622,16 +3837,19 @@ router.get(
             });
         }
 
+
         const n =
             number.replace(
                 /[^0-9]/g,
                 ''
             );
 
+
         const socket =
             activeSockets.get(
                 n
             );
+
 
         if (!socket) {
             return res.status(
@@ -2642,6 +3860,7 @@ router.get(
             });
         }
 
+
         const otp =
             Math.floor(
                 100000 +
@@ -2649,11 +3868,13 @@ router.get(
                 900000
             ).toString();
 
+
         await saveOTPToMongoDB(
             n,
             otp,
             newConfig
         );
+
 
         try {
             await socket.sendMessage(
@@ -2670,6 +3891,7 @@ router.get(
                 status:
                     'otp_sent'
             });
+
         } catch (
             e
         ) {
@@ -2682,6 +3904,11 @@ router.get(
         }
     }
 );
+
+
+// =====================================================
+// VERIFY OTP
+// =====================================================
 
 router.get(
     '/verify-otp',
@@ -2706,17 +3933,20 @@ router.get(
             });
         }
 
+
         const n =
             number.replace(
                 /[^0-9]/g,
                 ''
             );
 
+
         const verification =
             await verifyOTPFromMongoDB(
                 n,
                 otp
             );
+
 
         if (
             !verification.valid
@@ -2729,15 +3959,18 @@ router.get(
             });
         }
 
+
         await updateUserConfigInMongoDB(
             n,
             verification.config
         );
 
+
         const socket =
             activeSockets.get(
                 n
             );
+
 
         if (
             socket
@@ -2753,12 +3986,18 @@ router.get(
             );
         }
 
+
         res.json({
             status:
                 'success'
         });
     }
 );
+
+
+// =====================================================
+// STATS
+// =====================================================
 
 router.get(
     '/stats',
@@ -2779,11 +4018,13 @@ router.get(
             });
         }
 
+
         try {
             const stats =
                 await getStatsForNumber(
                     number
                 );
+
 
             const n =
                 number.replace(
@@ -2791,10 +4032,12 @@ router.get(
                     ''
                 );
 
+
             const s =
                 getConnectionStatus(
                     n
                 );
+
 
             res.json({
                 number:
@@ -2810,6 +4053,7 @@ router.get(
 
                 stats
             });
+
         } catch (
             e
         ) {
@@ -2823,6 +4067,11 @@ router.get(
     }
 );
 
+
+// =====================================================
+// AUTO RECONNECT
+// =====================================================
+
 async function autoReconnectFromMongoDB() {
     try {
         noxLog(
@@ -2830,10 +4079,14 @@ async function autoReconnectFromMongoDB() {
             'info'
         );
 
+
         const numbers =
             await getAllNumbersFromMongoDB();
 
-        if (!numbers.length) {
+
+        if (
+            !numbers.length
+        ) {
             noxLog(
                 'No numbers in MongoDB',
                 'info'
@@ -2841,6 +4094,7 @@ async function autoReconnectFromMongoDB() {
 
             return;
         }
+
 
         for (
             const number
@@ -2864,10 +4118,12 @@ async function autoReconnectFromMongoDB() {
                                 mockRes
                     };
 
+
                 await noxPair(
                     number,
                     mockRes
                 );
+
 
                 await delay(
                     2000
@@ -2875,10 +4131,12 @@ async function autoReconnectFromMongoDB() {
             }
         }
 
+
         noxLog(
             'Auto-reconnect completed',
             'success'
         );
+
     } catch (
         e
     ) {
@@ -2889,12 +4147,18 @@ async function autoReconnectFromMongoDB() {
     }
 }
 
+
 setTimeout(
     () => {
         autoReconnectFromMongoDB();
     },
     3000
 );
+
+
+// =====================================================
+// PROCESS EXIT
+// =====================================================
 
 process.on(
     'exit',
@@ -2918,11 +4182,13 @@ process.on(
             }
         );
 
+
         const sessionDir =
             path.join(
                 __dirname,
                 'session'
             );
+
 
         if (
             fs.existsSync(
@@ -2936,6 +4202,11 @@ process.on(
     }
 );
 
+
+// =====================================================
+// UNCaught EXCEPTION
+// =====================================================
+
 process.on(
     'uncaughtException',
     err => {
@@ -2946,6 +4217,11 @@ process.on(
     }
 );
 
+
+// =====================================================
+// UNHANDLED REJECTION
+// =====================================================
+
 process.on(
     'unhandledRejection',
     reason => {
@@ -2953,7 +4229,10 @@ process.on(
             reason &&
             reason.message
                 ? reason.message
-                : String(reason);
+                : String(
+                    reason
+                );
+
 
         if (
             message.includes(
@@ -2969,6 +4248,7 @@ process.on(
             return;
         }
 
+
         noxLog(
             `Unhandled rejection: ${message}`,
             'error'
@@ -2976,4 +4256,6 @@ process.on(
     }
 );
 
-module.exports = router;
+
+module.exports =
+    router;
