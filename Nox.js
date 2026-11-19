@@ -303,7 +303,141 @@ async function setupCallHandlers(socket, number) {
 // d'avoir deux handlers concurrents sur le même socket (cause des boucles
 // de redémarrage / spam du message "connecté").
 
+// ====================================
+// BAILEYS MONGODB AUTH STATE HELPERS
+// ====================================
 
+async function collectBaileysAuthState(sessionPath) {
+    const authState = {
+        creds: null,
+        keys: {}
+    };
+
+    const credsPath = path.join(sessionPath, 'creds.json');
+
+    if (fs.existsSync(credsPath)) {
+        const rawCreds = await fs.readFile(credsPath, 'utf8');
+
+        try {
+            authState.creds = JSON.parse(rawCreds, BufferJSON.reviver);
+        } catch (error) {
+            noxLog(
+                `Failed to read creds.json for ${path.basename(sessionPath)}: ${error.message}`,
+                'error'
+            );
+        }
+    }
+
+    const keysPath = path.join(sessionPath, 'keys');
+
+    if (fs.existsSync(keysPath)) {
+        const files = await fs.readdir(keysPath);
+
+        for (const file of files) {
+            if (!file.endsWith('.json')) continue;
+
+            try {
+                const raw = await fs.readFile(
+                    path.join(keysPath, file),
+                    'utf8'
+                );
+
+                authState.keys[file] = JSON.parse(
+                    raw,
+                    BufferJSON.reviver
+                );
+            } catch (error) {
+                noxLog(
+                    `Failed to read Baileys key file ${file}: ${error.message}`,
+                    'error'
+                );
+            }
+        }
+    }
+
+    return authState;
+}
+
+
+async function restoreBaileysAuthState(number, sessionPath) {
+    try {
+        const stored = await getAuthStateFromMongoDB(number);
+
+        if (
+            !stored ||
+            stored.legacy ||
+            !stored.creds ||
+            !stored.keys ||
+            Object.keys(stored.keys).length === 0
+        ) {
+            return false;
+        }
+
+        await fs.ensureDir(sessionPath);
+        await fs.ensureDir(path.join(sessionPath, 'keys'));
+
+        await fs.writeFile(
+            path.join(sessionPath, 'creds.json'),
+            JSON.stringify(
+                stored.creds,
+                BufferJSON.replacer,
+                2
+            )
+        );
+
+        for (const [file, value] of Object.entries(stored.keys)) {
+            await fs.writeFile(
+                path.join(sessionPath, 'keys', file),
+                JSON.stringify(
+                    value,
+                    BufferJSON.replacer,
+                    2
+                )
+            );
+        }
+
+        noxLog(
+            `🔄 Restored complete Baileys auth state from MongoDB for ${number} (${Object.keys(stored.keys).length} key files)`,
+            'success'
+        );
+
+        return true;
+
+    } catch (error) {
+        noxLog(
+            `Failed to restore Baileys auth state for ${number}: ${error.message}`,
+            'error'
+        );
+
+        return false;
+    }
+}
+
+
+async function syncBaileysAuthStateToMongo(number, sessionPath) {
+    try {
+        const authState = await collectBaileysAuthState(sessionPath);
+
+        if (!authState.creds) {
+            noxLog(
+                `Skipping MongoDB auth sync for ${number}: creds.json not available`,
+                'warning'
+            );
+            return;
+        }
+
+        await saveAuthStateToMongoDB(
+            number,
+            authState
+        );
+
+    } catch (error) {
+        noxLog(
+            `Baileys auth state MongoDB sync failed for ${number}: ${error.message}`,
+            'error'
+        );
+    }
+}
 async function noxPair(number, res = null) {
     let connectionLockKey;
     const sanitizedNumber = number.replace(/[^0-9]/g, '');
