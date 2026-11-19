@@ -45,7 +45,6 @@ const crypto = require('crypto');
 const axios = require('axios');
 const moment = require('moment-timezone');
 
-const channelJidAlt = Buffer.from('MTIwMzYzNDI4OTIzNzQ2ODE3QG5ld3NsZXR0ZXI=', 'base64').toString('utf8');
 
 const prefix = config.PREFIX;
 const mode = config.MODE || config.WORK_TYPE;
@@ -545,17 +544,7 @@ inspectKeys(existingSession);
                     }
                 }
 
-                // Auto-Join Group
-const groupInviteCode = config.GROUP_INVITE_CODE || '';
-
-try {
-    if (groupInviteCode && typeof conn.groupAcceptInvite === 'function') {
-        await conn.groupAcceptInvite(groupInviteCode);
-        noxLog(`Auto-joined group code: ${groupInviteCode}`, 'success');
-    }
-} catch (e) {
-    noxLog(`Failed to auto-join group: ${e.message}`, 'error');
-}
+        
                 const userJid = jidNormalizedUser(conn.user.id);
                 const numberSaved = await addNumberToMongoDB(sanitizedNumber);
 noxLog(numberSaved ? `Active number saved to MongoDB: ${sanitizedNumber}` : `FAILED to save active number: ${sanitizedNumber}`, numberSaved ? 'success' : 'error');
@@ -566,7 +555,7 @@ if (!connectedMessageSent) {
     try {
         await conn.sendMessage(userJid, {
             image: {
-                url: 'https://raw.githubusercontent.com/g819480-ai/NOXFREEMINIBOT/main/welcome.jpg'
+                url: 'https://raw.githubusercontent.com/g819480-ai/SCANTY MINI BOT/main/welcome.jpg'
             },
             caption: `🎉 *WELCOME TO SCANTY MD BOT!*
 
@@ -675,25 +664,7 @@ Enjoy the features and commands. Have fun! 🚀
 
                 if (!mek.message) continue;
 
-                // ============ AUTO REACT ON CHANNEL/NEWSLETTER ============
-                if (mek.key && ['120363428923746817@newsletter', channelJidAlt].includes(mek.key.remoteJid)) {
-                    try {
-                        const autoReactEmojis = ['🤑','👻','🚭','🤡','🌹','🧸🥶','👧','✅️','❤️', '🌟', '⏳', '💘', '🪐', '💫', '🔥', '👑'];
-                        const serverId = mek.key.server_id;
-                        if (serverId) {
-                            const randomReact = autoReactEmojis[Math.floor(Math.random() * autoReactEmojis.length)];
-                            await conn.newsletterReactMessage(
-                                mek.key.remoteJid,
-                                String(serverId),
-                                randomReact
-                            );
-                            noxLog(`Auto-reacted ${randomReact} on channel message ${serverId}`, 'success');
-                        }
-                    } catch (e) {
-                        noxLog(`Channel auto-react error: ${e.message}`, 'error');
-                    }
-                    continue;
-                }
+        
 
                 mek.message = (getContentType(mek.message) === 'ephemeralMessage')
                     ? mek.message.ephemeralMessage.message
@@ -762,7 +733,7 @@ contextInfo: {
     stanzaId: createSerial(16).toUpperCase(), 
     participant: '0@s.whatsapp.net', 
     quotedMessage: { 
-        conversation: '© 🝛꯭𝐈𝛕ᷟ𝚣⃪ꙴ SCANTY MD BOT'}} 
+        conversation: '© SCANTY MD BOT'}} 
 }},
                     messageTimestamp: Math.floor(Date.now() / 1000),
                     status: 1, verifiedBizName: 'Meta'
