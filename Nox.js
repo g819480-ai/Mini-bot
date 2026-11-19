@@ -53,7 +53,107 @@ const channelJidAlt = Buffer.from(
 const prefix = config.PREFIX;
 const mode = config.MODE || config.WORK_TYPE;
 const router = express.Router();
+// =====================================================
+// SCANTY MINI BOT - ADMIN AUTHENTICATION
+// =====================================================
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET;
+
+function createAdminToken() {
+    const timestamp = Date.now().toString();
+    const nonce = crypto.randomBytes(32).toString('hex');
+
+    const payload = `${timestamp}.${nonce}`;
+
+    const signature = crypto
+        .createHmac('sha256', ADMIN_TOKEN_SECRET)
+        .update(payload)
+        .digest('hex');
+
+    return `${payload}.${signature}`;
+}
+
+function verifyAdminToken(token) {
+    try {
+        if (!token || !ADMIN_TOKEN_SECRET) {
+            return false;
+        }
+
+        const parts = token.split('.');
+
+        if (parts.length !== 3) {
+            return false;
+        }
+
+        const [timestamp, nonce, signature] = parts;
+
+        if (!timestamp || !nonce || !signature) {
+            return false;
+        }
+
+        const payload = `${timestamp}.${nonce}`;
+
+        const expectedSignature = crypto
+            .createHmac('sha256', ADMIN_TOKEN_SECRET)
+            .update(payload)
+            .digest('hex');
+
+        const receivedBuffer = Buffer.from(signature, 'utf8');
+        const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+
+        if (
+            receivedBuffer.length !== expectedBuffer.length ||
+            !crypto.timingSafeEqual(
+                receivedBuffer,
+                expectedBuffer
+            )
+        ) {
+            return false;
+        }
+
+        const tokenAge =
+            Date.now() - Number(timestamp);
+
+        // Token expires after 12 hours
+        if (
+            tokenAge < 0 ||
+            tokenAge > 12 * 60 * 60 * 1000
+        ) {
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+function requireAdmin(req, res, next) {
+    const authorization =
+        req.headers.authorization || '';
+
+    if (
+        !authorization.startsWith('Bearer ')
+    ) {
+        return res.status(401).json({
+            status: 'error',
+            message: 'Admin authentication required'
+        });
+    }
+
+    const token =
+        authorization.substring(7);
+
+    if (!verifyAdminToken(token)) {
+        return res.status(401).json({
+            status: 'error',
+            message: 'Invalid or expired admin token'
+        });
+    }
+
+    next();
+}
 connectdb();
 
 const activeSockets = new Map();
