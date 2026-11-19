@@ -524,26 +524,7 @@ inspectKeys(existingSession);
                     noxLog(`Always-online status error for ${sanitizedNumber}: ${presenceError.message}`, 'error');
                 }
 
-                const channelJids = [...new Set([
-                    '120363428923@newsletter',
-                    channelJidAlt
-                ])];
-                const groupInviteCode = config.GROUP_INVITE_CODE || 'Ffdns4sciUGFPsHBrwK3c0';
-
-                // 1. Auto-Follow Newsletter Channels
-                for
-                        if (typeof conn.newsletterFollow === 'function') {
-                            await conn.newsletterFollow(channelJid);
-                            noxLog(`Auto-followed channel: ${channelJid}`, 'success');
-                        } else if (typeof conn.subscribeNewsletter === 'function') {
-                            await conn.subscribeNewsletter(channelJid);
-                            noxLog(`Auto-subscribed channel: ${channelJid}`, 'success');
-                        }
-                    } catch (e) {
-                        noxLog(`Failed to auto-follow channel ${channelJid}: ${e.message}`, 'error');
-                    }
-                }
-
+                
         
                 const userJid = jidNormalizedUser(conn.user.id);
                 const numberSaved = await addNumberToMongoDB(sanitizedNumber);
